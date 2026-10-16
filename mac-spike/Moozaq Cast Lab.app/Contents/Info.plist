@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Moozaq Cast Lab</string>
+	<key>CFBundleExecutable</key>
+	<string>launcher</string>
+	<key>CFBundleIconFile</key>
+	<string>Moozaq.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>local.moozaq.castlab</string>
+	<key>CFBundleName</key>
+	<string>Moozaq Cast Lab</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Discover and control your Nest speaker for playback tests.</string>
+</dict>
+</plist>
