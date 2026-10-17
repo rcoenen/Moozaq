@@ -17,15 +17,20 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Cast to: a modal sheet with one card per device holding its checkbox, icon, name and
- * volume (handoff "Cast to"). Behaviour is unchanged from the confirmed-route rules:
- * checking joins that device, unchecking the last device stops playback.
+ * volume (handoff "Cast to"). Checking a member joins the running group; checking a group
+ * while a mix plays moves that mix there after one explicit confirmation. Individual
+ * speakers cannot be added live when the session is not on a group route, and that locked
+ * state now explains itself instead of doing nothing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, onDismiss: () -> Unit) {
+fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayback, onDismiss: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val devices = pickerDevices(ui.snapshot)
+    var locked by remember { mutableStateOf<Device?>(null) }
+    var moving by remember { mutableStateOf<Device?>(null) }
+    val liveLocked = playback.session && !ui.snapshot.membership.available
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -49,20 +54,78 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, onDismiss: () -> Uni
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 12.dp),
             )
+            if (liveLocked) {
+                Text(
+                    "Adding a speaker live is not available on this session. Choose a saved speaker group and the mix moves there.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 12.dp),
+                )
+            }
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = false).padding(horizontal = Dimens.ScreenMargin),
                 verticalArrangement = Arrangement.spacedBy(Dimens.DeviceCardGap),
             ) {
-                items(devices, key = { it.id }) { device -> CastToRow(store, ui, device) }
+                items(devices, key = { it.id }) { device ->
+                    CastToRow(
+                        store, ui, playback, device,
+                        onLocked = { locked = device },
+                        onMove = { moving = device },
+                    )
+                }
                 item(key = "status") { CastToStatus(store, ui) }
             }
             Spacer(Modifier.height(24.dp))
         }
     }
+    locked?.let { device ->
+        AlertDialog(
+            onDismissRequest = { locked = null },
+            containerColor = colors.surfaceContainerHigh,
+            title = { Text("${device.name} cannot join live", style = MaterialTheme.typography.titleLarge) },
+            text = {
+                Text(
+                    "This session runs on a single speaker, so Android cannot add another one to it. Choose a saved speaker group to play on several speakers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = { TextButton(onClick = { locked = null }) { Text("OK") } },
+        )
+    }
+    moving?.let { device ->
+        val mix = playback.mix
+        AlertDialog(
+            onDismissRequest = { moving = null },
+            containerColor = colors.surfaceContainerHigh,
+            title = { Text("Move to ${device.name}?", style = MaterialTheme.typography.titleLarge) },
+            text = {
+                Text(
+                    if (mix != null) "“${mix.title}” moves to ${device.name} and ${playback.device} stops."
+                    else "Playback moves to ${device.name} and ${playback.device} stops.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val target = device
+                    moving = null
+                    if (mix != null) store.movePlaybackTo(target.id, mix) else store.selectDevice(target.id)
+                }) { Text("Move and play") }
+            },
+            dismissButton = { TextButton(onClick = { moving = null }) { Text("Cancel") } },
+        )
+    }
 }
 
 @Composable
-private fun CastToRow(store: PlayerStore, ui: PlayerUiState, device: Device) {
+private fun CastToRow(
+    store: PlayerStore,
+    ui: PlayerUiState,
+    playback: PhonePlayback,
+    device: Device,
+    onLocked: () -> Unit,
+    onMove: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val s = ui.snapshot
     val output = s.outputs.find { it.id == device.id }
@@ -79,6 +142,8 @@ private fun CastToRow(store: PlayerStore, ui: PlayerUiState, device: Device) {
     val foreground = if (checked) colors.onSurface else colors.onSurfaceVariant
     val groupPlaying = deviceKind(device) == DeviceKind.GROUP && selected &&
         s.receiver.state in listOf("PLAYING", "PAUSED", "BUFFERING")
+    val liveLocked = playback.session && !s.membership.available &&
+        !destination && deviceKind(device) == DeviceKind.SPEAKER
     val enabled = when {
         !device.available -> false
         groupPlaying -> s.receiver.connected && !s.busy && !s.connecting && !membershipPending(ui)
@@ -94,6 +159,8 @@ private fun CastToRow(store: PlayerStore, ui: PlayerUiState, device: Device) {
         volume?.failed == true -> "Volume not confirmed"
         volume != null -> "Syncing volume…"
         destination && checked -> "Selected destination"
+        liveLocked && checked -> "Playing here · use a group for several speakers"
+        liveLocked -> "Cannot join live · use a saved group"
         else -> outputActivity(output, s)
     }
     var drag by remember(device.id) { mutableStateOf<Float?>(null) }
@@ -120,11 +187,13 @@ private fun CastToRow(store: PlayerStore, ui: PlayerUiState, device: Device) {
             onCheckedChange = {
                 when {
                     groupPlaying -> store.command("stop")
+                    liveLocked -> onLocked()
+                    destination && playback.session && playback.mix != null -> onMove()
                     destination -> store.selectDevice(device.id)
                     else -> store.togglePlaybackDevice(device)
                 }
             },
-            enabled = enabled,
+            enabled = enabled || liveLocked,
             pending = pending,
             contentDescription = "Cast to ${device.name}",
             stateDescription = detail,

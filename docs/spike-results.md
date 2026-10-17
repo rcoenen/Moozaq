@@ -470,3 +470,23 @@ Deliberate deviations, all recorded here rather than hidden:
 Validation: `:androidApp:assembleDebug`, `:androidApp:lintDebug`, `:androidApp:testDebugUnitTest` and `:composeApp:desktopTest` pass with **35 Android unit tests and 47 shared tests** (39 previous plus 8 new phone-presentation tests). `dumpsys` verified 0.4.0 / code 10 on the Pixel 6a.
 
 Visual checks, none of which started audio: the installed build was cold launched while an authorized Office session was already playing, so the existing session was rejoined passively and the screenshots show casting Browse, Now playing and Cast to with the live Office session. The Stopped and First launch mini-player states were captured from the silent `:composeApp:designPreview` fixture at 412 × 915 (`MOOZAQ_PREVIEW=stopped|fresh MOOZAQ_PREVIEW_SIZE=phone`), which cannot reach a speaker. Not verified on hardware: the Starting card and pending mini-player while a real receiver switch is in flight, pause/resume against a live receiver, and TalkBack traversal. Evidence: ignored `compose-app/androidApp/build/validation/040-*`.
+
+### Android 0.4.1 why a speaker cannot join live (2026-10-17)
+
+The owner tried to add Kitchen speaker to a playing Office session so two speakers would play, and found every speaker checkbox grey and inert. Diagnosis from the build and the device, not from guesswork:
+
+- `cast-debug.log` records `route.selected name=Office speaker type=RouteInfo` for every selection in this session. The route is a plain `RouteInfo`, never a `GroupRouteInfo`.
+- `AndroidBackend.snapshot()` sets `membership.available = group != null && fresh && client?.hasMediaSession() == true`, and `setPlaybackDevices()` refuses anything that is not a `GroupRouteInfo`. With a single speaker selected, live membership is therefore correctly unavailable, so 0.4.0 locked all speaker checkboxes. The lock was right; the silence was not.
+
+That is a platform limit, not a styling bug: Android's Cast stack exposes add/remove-member only for a session already running on a dynamic group. A sender cannot invent a group around a single-speaker session. Native multi-speaker playback on this hardware comes from a saved Home-app group ("All speakers"), which appears here as a `group` route and can be played directly.
+
+Android 0.4.1 / code 11 addresses what was actually broken — the dead control — without pretending the limit does not exist:
+
+- The Cast to sheet states the constraint once: "Adding a speaker live is not available on this session. Choose a saved speaker group and the mix moves there."
+- A locked speaker row is now tappable and explains itself: "Kitchen speaker cannot join live. This session runs on a single speaker, so Android cannot add another one to it."
+- Checking a group or TV while a mix plays now asks first: "Move to All speakers? … moves to All speakers and Office speaker stops." Cancelling changes nothing.
+- Confirming calls the new `PlayerStore.movePlaybackTo`, which selects the destination, waits up to 20 seconds for a fresh connection, and only then loads the same mix once. Stop or a newer request cancels the wait before any LOAD, mirroring the 0.3.6 connect-and-play fence.
+
+Validation: Android assemble, lint and unit tests pass; **50 shared tests** pass, including three new `MovePlaybackTest` cases (select-then-play ordering, Stop during the move preventing a late LOAD, and moving to the already-connected destination without a route change). `dumpsys` verified 0.4.1 / code 11. On the phone, with the authorized Office session still playing, the notice, the locked-speaker explanation and the move confirmation were all opened and cancelled; diagnostics show zero `destination.request` entries and an unchanged Office session (`sessionHash=66234e93b379`, PLAYING at 2786 s) afterwards.
+
+Not verified: the confirmed move actually playing on a group. That needs an audible two-speaker test, which was not started without authorization. Whether this Pixel exposes any `GroupRouteInfo` at all remains unproven — no such route has been observed, so on this hardware the saved group is the path to multiple speakers.

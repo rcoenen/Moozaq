@@ -65,7 +65,7 @@ fun PhoneApp(
         )
     }
 
-    if (castOpen) PhoneCastToSheet(store, ui) { castOpen = false }
+    if (castOpen) PhoneCastToSheet(store, ui, phonePlayback(ui, library)) { castOpen = false }
     if (channelsOpen) {
         ChannelsDialog(store, ui, manualReducedMotion, onManualReducedMotion) { channelsOpen = false }
     }

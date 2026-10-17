@@ -182,6 +182,44 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
             backend.play(mix.url)
         }
     }
+
+    /**
+     * Explicitly move the current mix to another destination, e.g. from one speaker to a saved
+     * speaker group. The click is the authorization; the mix is loaded on the new destination
+     * only after its receiver connects. Stop or a newer request cancels before that LOAD.
+     */
+    fun movePlaybackTo(destinationId: String, mix: Mix) {
+        val ui=state.value
+        if(ui.destination!=null || ui.snapshot.busy) return
+        if(ui.snapshot.target==destinationId && ui.snapshot.receiver.connected && !ui.snapshot.connecting) {
+            play(mix);return
+        }
+        val generation=++playGeneration
+        mutable.update { it.copy(
+            destination=PendingDestination(destinationId),
+            transport=PendingTransport("PLAYING",it.snapshot.receiver.state,it.snapshot.receiver.transport_revision,mix.url),
+        ) }
+        action {
+            backend.selectDevice(destinationId)
+            if(!prepareMove(mix,destinationId,generation)) return@action
+            backend.play(mix.url)
+        }
+    }
+    private suspend fun prepareMove(mix:Mix,target:String,generation:Long):Boolean {
+        val result=withTimeoutOrNull(20000) {
+            while(true) {
+                if(generation!=playGeneration) return@withTimeoutOrNull false
+                val current=backend.snapshot()
+                if(current.target!=target) return@withTimeoutOrNull false
+                if(current.receiver.connected && !current.connecting) return@withTimeoutOrNull true
+                current.connection_error?.let {error(it)}
+                delay(150)
+            }
+            @Suppress("UNREACHABLE_CODE") false
+        }
+        if(result==null) error("The mix was not moved: the speaker did not connect in time.")
+        return result==true
+    }
     private suspend fun preparePlay(mix:Mix,target:String,generation:Long):Boolean {
         val result=withTimeoutOrNull(15000) {
             var ready=false

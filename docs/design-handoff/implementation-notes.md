@@ -53,3 +53,7 @@ The Cast button is our own vector opening the Cast to sheet, not the SDK `MediaR
 A pending Stop shows "Stopping…" even though the handoff table has no Stopping row, because reporting a stop before receiver confirmation is forbidden. Devices whose volume has not been read show a disabled slider rather than an invented level. The prototype's simulated delays are not copied; every pending state ends on fresh receiver state.
 
 The handoff's open questions are still open: no Stop casting inside the sheet, no group-volume scaling decision, device order as the SDK returns it, and plain back for collapsing Now playing.
+
+## Live grouping and the move confirmation (October 17, 2026)
+
+The handoff's checkbox means "this device plays the current mix". A single speaker cannot be joined live by a sender — Cast exposes membership only on a dynamic group route — so the phone states that limit in the sheet and in a tapped row instead of showing a dead control. For the part that is possible, checking a saved group while a mix plays asks for confirmation and then moves the mix there, which is the closest honest equivalent to "this device plays the current mix". That confirmation is an addition to the handoff's interaction table and is recorded here deliberately.
