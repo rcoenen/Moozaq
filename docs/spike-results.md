@@ -490,3 +490,13 @@ Android 0.4.1 / code 11 addresses what was actually broken — the dead control 
 Validation: Android assemble, lint and unit tests pass; **50 shared tests** pass, including three new `MovePlaybackTest` cases (select-then-play ordering, Stop during the move preventing a late LOAD, and moving to the already-connected destination without a route change). `dumpsys` verified 0.4.1 / code 11. On the phone, with the authorized Office session still playing, the notice, the locked-speaker explanation and the move confirmation were all opened and cancelled; diagnostics show zero `destination.request` entries and an unchanged Office session (`sessionHash=66234e93b379`, PLAYING at 2786 s) afterwards.
 
 Not verified: the confirmed move actually playing on a group. That needs an audible two-speaker test, which was not started without authorization. Whether this Pixel exposes any `GroupRouteInfo` at all remains unproven — no such route has been observed, so on this hardware the saved group is the path to multiple speakers.
+
+### Android playback membership investigation (2026-10-17)
+
+Investigated why the Android app cannot add a second speaker to a playing session, after the owner pointed out that the Mac path does exactly that. Written up in [android-playback-membership-investigation.md](android-playback-membership-investigation.md).
+
+Verified: diagnostics record `type=RouteInfo` for every selection, and `AndroidBackend` gates membership on `GroupRouteInfo` (`AndroidBackend.kt:408`, `:540`). Extracted `play-services-cast-framework-22.3.1` and `play-services-cast-22.3.1`: neither references `DynamicGroupRouteController`; that interface and `MediaRouterParams.DIALOG_TYPE_DYNAMIC_GROUP` exist only in `androidx.mediarouter`. So the Cast SDK cannot form a group, which is why the checkboxes were locked.
+
+Corrected an earlier claim made during diagnosis: the receiver protocol *can* do this and this repository already does. `mac-spike/grouping.py` sends `SET_PLAYBACK_DEVICES` on `urn:x-cast:com.google.cast.multizone` with `target_platform=True`, and `docs/spike-results.md:166` records a live Mac change that created temporary group `302fdeb3-90ee-46ca-a23b-9c1ee486485e` with `failedDevices=[]` and the same application session. `compose-app/bridge/membership.py` holds the full guarded implementation. The gap is Android's missing platform-channel client, not a platform limit.
+
+No protocol code was written and no speaker was mutated. The port requires a CASTV2 platform client, capability gating, a single-shot correlated mutation, temporary-group visibility, and endpoint adoption; the endpoint handoff and one audible two-speaker run are the unproven parts.

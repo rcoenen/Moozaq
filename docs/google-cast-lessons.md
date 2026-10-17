@@ -41,7 +41,7 @@ Code: [engine.py](../mac-spike/engine.py), [recovery.py](../compose-app/bridge/r
 
 ## Native temporary grouping on Mac
 
-The Mac implementation is experimental protocol work, recovered from local Google Home inspection and validated against our receivers. It is **not a documented public Mac sender API or a guarantee for other devices/firmware**. Android's documented Output Switcher is a separate integration path; the shared Compose Android library does not implement that backend yet.
+The Mac implementation is experimental protocol work, recovered from local Google Home inspection and validated against our receivers. It is **not a documented public Mac sender API or a guarantee for other devices/firmware**. Android's documented Output Switcher is a separate integration path; the shared Compose Android library does not implement that backend yet. The reason is specific: the Cast Android SDK ships no dynamic-group provider and no way to address `receiver-0`, so the multizone mutation above is unreachable from `CastSession`. See [android-playback-membership-investigation.md](android-playback-membership-investigation.md) for the jar-level evidence and the porting plan.
 
 Observed protocol contract:
 
