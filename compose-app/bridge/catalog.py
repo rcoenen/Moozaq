@@ -44,6 +44,7 @@ class Catalog:
         self.path = Path(path)
         self.lock = threading.RLock()
         self.busy = False
+        self.refreshing_channels = []
         self.message = 'Catalog ready'
         self.revision = 1
         try:
@@ -63,7 +64,7 @@ class Catalog:
 
     def status(self):
         with self.lock:
-            return {'catalog_revision': self.revision, 'importing': self.busy, 'catalog_message': self.message}
+            return {'catalog_revision': self.revision, 'importing': self.busy, 'catalog_message': self.message, 'refreshing_channels': list(self.refreshing_channels)}
 
     def snapshot(self):
         with self.lock:
@@ -120,6 +121,7 @@ class Catalog:
                 self.revision += 1
             targets = [url] if url else [c['url'] for c in self.data['channels']]
             self.busy = True
+            self.refreshing_channels = list(targets)
             self.message = 'Importing channel metadata…'
         def run():
             failed = 0
@@ -137,8 +139,13 @@ class Catalog:
                                 source['error'] = 'Import incomplete. Retry to refresh; existing mixes retained.'
                             self.save()
                             self.revision += 1
+                    finally:
+                        with self.lock:
+                            if target in self.refreshing_channels:
+                                self.refreshing_channels.remove(target)
             finally:
                 with self.lock:
                     self.busy = False
+                    self.refreshing_channels = []
                     self.message = f'{len(self.data["mixes"])} videos cached' + (f' · {failed} channel imports need retry' if failed else ' · Up to date')
         threading.Thread(target=run, daemon=True).start()

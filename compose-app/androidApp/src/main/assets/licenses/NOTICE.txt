@@ -1,0 +1,17 @@
+Moozaq Android development build
+
+On-device source resolver: youtubedl-android 0.18.1 (GPL-3.0)
+Source: https://github.com/yausername/youtubedl-android
+License: youtubedl-android-GPL3.txt
+The native dependency supplies Python and QuickJS; see its upstream source and
+build scripts for their notices and corresponding source.
+The APK overrides its old yt-dlp with pinned upstream yt-dlp 2026.08.19 (Unlicense).
+Source: https://github.com/yt-dlp/yt-dlp/tree/2026.08.19
+License: yt-dlp-Unlicense.txt
+Asset: res/raw/ytdlp, official release Python zipapp; SHA-256:
+1fa6733c37ea6fb51c99ad8fe785e7b7e5f3246c9b980230329d4fb72ed8d4d6
+
+Google Cast Android SDK: Google APIs Terms of Service.
+AndroidX / Jetpack Compose / Kotlin: Apache License 2.0.
+Roboto Flex: SIL Open Font License; see repository compose-app/licenses/.
+Moozaq application source for this private development build is in this repository.

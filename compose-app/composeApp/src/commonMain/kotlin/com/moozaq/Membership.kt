@@ -43,8 +43,7 @@ fun membershipPending(ui: PlayerUiState) = ui.membership != null || ui.snapshot.
 
 fun canToggleMembership(ui: PlayerUiState, device: Device): Boolean {
     val s = ui.snapshot
-    val selected = requestedMembers(ui)
     return ui.destination == null && device.available && deviceKind(device) == DeviceKind.SPEAKER && s.membership.available &&
         s.membership.token != null && s.receiver.connected && !s.connecting && !s.busy &&
-        !membershipPending(ui) && !(device.id in selected && selected.size == 1)
+        !membershipPending(ui)
 }

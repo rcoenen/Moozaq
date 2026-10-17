@@ -159,3 +159,68 @@ Configure known-host discovery hints before starting CastBrowser; adding them af
 Owner clarified that selecting All speakers makes the saved group the playback destination. Group rows now offer a destination checkbox using the existing passive select/rejoin path; the next explicit Play targets that group. Selection alone does not load, resume or transfer music. Hold the desired group selection with pending feedback until the matching remote is synchronized; retain failed intent with retry feedback. A destination is exclusive and is replaced by choosing another output. Physical speaker checkboxes retain their separate current-session membership behavior; the picker explains this distinction.
 
 Owner correction: while idle, individual speaker checkboxes also select the playback destination. Selecting a physical speaker replaces and unchecks a saved group, and selecting a group replaces the physical destination. Both use passive selection and the same pending confirmation. During an active/paused/buffering session, physical checkboxes retain live membership behavior. Pending membership changes must not silently turn into destination selection.
+
+
+### Design handoff implementation (2026-10-17)
+
+Owner requested implementation of `moozaq-design-handoff.zip`. The supplied Material 3 dark tokens, Roboto Flex typography, 240 dp artwork cards, 136 dp player, anchored speaker picker and Channels dialog supersede the earlier large player/centered speaker modal layout. Preserve the existing one-hour minimum, silent browsing and passive remote selection. The original handoff is archived under `docs/design-handoff/`.
+
+The compact picker removes the separate Control buttons and explanatory footer. A device-name click still opens its remote; destination and live membership checkboxes retain their existing meanings. Unchecking the last active physical participant now invokes verified Stop instead of disabling the checkbox. Unchecking a currently playing selected saved group also invokes Stop. Neither action deletes a saved group. While idle, the exclusive destination remains available for the next explicit Play.
+
+Stopped UI retains the last observed track for an explicit Play again action when it matches the catalog. This memory never resumes playback automatically and is not persisted as a session. Reconnection continues to show uncertain receiver evidence. Local pending colour and text remain tied to real confirmations, including Stop; prototype timer-based confirmations are limited to a separate test-only preview.
+
+
+### Native Mac chrome (2026-10-17)
+
+Owner rejected the white native title bar. Moozaq's native Mac window appearance should stay dark alongside the app theme, retaining native window controls. Configure the application appearance at JVM startup, without changing the owner's system-wide appearance.
+
+
+### Speaker handoff continuity and picker (2026-10-17)
+
+Adding a speaker must retain the current mix and frozen timeline while its remote moves. A verified membership handoff now supplies fresh, session-bound media evidence directly to the bridge, without waiting for multicast discovery and a second monitoring connection. Evidence expires after 12 seconds and passive status requests refresh it; session changes invalidate it. Unconfirmed controls remain disabled and Stop stays available. Do not present Play again merely because a handoff temporarily lacks receiver state.
+
+Hide receiver-reported temporary groups from the destination list. The physical participant checkboxes represent them. Saved groups such as All speakers remain visible. Classify from the membership response or receiver dynamic_groups metadata, never from friendly-name suffixes. The Cast chip labels a classified temporary group by speaker count.
+
+
+### Current Android companion deployed (2026-10-17)
+
+Owner requested the current Moozaq design on the Pixel rather than the old Android Cast prototype. The first installable current build is `compose-app/androidApp`, package `com.moozaq.app`. It shares the Compose catalog, pending controls and group selection with desktop, with a touch-friendly compact layout.
+
+This development build uses the existing Mac Bridge instance through an authenticated loopback-only HTTP transport over wireless/USB ADB reverse. This is explicitly a Mac companion, not yet a standalone native Android Cast sender. Keep the Mac app and debugging connection available for control; Nest continues to fetch route-A media directly, and phone lifecycle callbacks only poll state. Mac and phone therefore observe/control one engine rather than competing separate engines. Credentials are provisioned into private app files, excluded from backup, and never bundled in the APK. Closing or reopening the phone does not load media or restore volume.
+
+
+### Standalone Android supersedes companion (2026-10-17)
+
+The owner explicitly rejected the Mac companion architecture. Android must work independently of the Mac, including discovery, source resolution, catalog management and Cast controls. `androidApp` now uses native Google Cast/MediaRouter and a bundled on-device yt-dlp runtime. The loopback server, phone credentials and reverse-tunnel setup have been removed. The earlier companion was a development detour, not an accepted product direction.
+
+Both apps share the Compose interface and state contracts; desktop retains its Python engine. The phone bundles public cached catalog metadata and can refresh channels itself. Explicit Play resolves on Android and sends the audio URL to the receiver; phone startup, browsing and reconnection never LOAD audio. Native Android group membership is gated on receiver-advertised support and still needs audible hardware validation.
+
+
+### Standalone Android return to playback (2026-10-17)
+
+Owner confirmed a mix plays on Bedroom from standalone Android and continues after closing the phone app. Reopening must automatically return to that speaker and show its actual current mix, artwork, playback state, position and volume. Android now persists the last Cast device identity and presentation name, never playback commands, signed streams, volume or timeline. Native saved-session restoration gets first chance; a bounded recovery path rediscovers the same device and checks for an existing Default Media Receiver before reattaching. A different receiver app or unavailable device is not replaced. Only fresh receiver state counts as Playing; startup and return never resolve or reload a mix.
+
+
+### Android 0.3.3 recovery validated on Office (2026-10-17)
+
+See [Android Cast hardening handoff](android-cast-hardening-handoff.md) for the verified 0.3.2 baseline and original candidate handoff. The phone now has 0.3.3 (code 5). Source review found that the post-probe recovery guard omitted `isResuming`; both recovery decision points now use a shared guard covering connected, connecting, resuming and suspended SDK sessions, with fresh state read after the probe. Assemble/lint pass with 30 Android and 34 shared tests.
+
+Bedroom no longer had an active compatible receiver, so the owner explicitly authorized starting Midnight Fever Motel on Office and audibly confirmed its playback. Two cold-process reopens reached fresh PLAYING in 2.600 and 1.884 seconds; a warm foreground return received fresh playing media state in 0.090 seconds. Source and application-session fingerprints remained identical, position advanced, screenshots showed the correct Office player, and recovery emitted no LOAD, PLAY, seek, volume or source-resolution events. Keep the disabled saved-session restoration and 500 ms grace for this validated path. This is one source on one speaker, not phone-reboot, Wi-Fi-loss, group, all-source or long-session proof.
+
+### Android 0.3.4 route-change hardening (2026-10-17)
+
+The phone now has 0.3.4 (code 6). After waiting for the Cast reason table's asynchronous initialization, the on-device SDK check confirms 2155 maps to `CASTING_ROUTE_CHANGED`; an earlier zero result was test initialization timing, not a different meaning. A pending first-time destination join now remains pending through a one-second settling delay and gets at most one route-only reconciliation when fresh generation, target identity, default-route and SDK-state guards all pass. It never retries attached sessions, another Cast route, media, volume or source resolution. Cancellation covers new selection, background, Stop, close and newer attachment.
+
+Validation passed with 35 Android and 34 shared tests plus the focused on-device reason mapping. If the reason bundle is not ready during a callback, only the already-proven 2155 mapping is used as a fallback; every other unknown status remains unchanged. The exact actor that returned Office to the phone route remains unknown, and no forced reproduction was attempted. A later cold-rejoin check found no active compatible Office receiver at 18:07 UTC, so hardware recovery and real-world retry effectiveness for this change remain unproven.
+
+### Plain-language Android player status (2026-10-17)
+
+Owner rejected the Android panel's debug-like “Checking playback…” and “No active Moozaq receiver…” presentation. Android 0.3.5 (code 7) now uses “Nothing playing” only for confirmed idle, shows “Last played: …” when an in-memory previous track exists, uses “Choose a mix” otherwise, and reserves “Connecting…” for genuine connection work. Raw receiver/protocol explanations remain in diagnostics. The phone screenshot visually confirms the clean idle panel; 35 Android and 35 shared tests pass.
+
+### Explicit Play connects before starting (2026-10-17)
+
+Owner found that mix Play clicks were silent when the selected speaker was disconnected. Android 0.3.6 (code 8) now treats Play as an explicit connect-and-start intent: show Starting immediately, select the current destination if needed, wait up to 15 seconds for fresh readiness, then start once. Stop or a newer destination invalidates the wait, and failures remain visible rather than becoming late playback or a silent no-op. Silent tests cover connect-then-play, Stop-before-ready and connection failure. With owner authorization, the real Midnight Fever Motel button connected Office and reached receiver-confirmed PLAYING with one LOAD; 35 Android and 38 shared tests pass.
+
+### Pending start presents the requested mix (2026-10-17)
+
+Owner identified that starting a second mix showed the old track's artwork, title and timeline beside a generic Starting label. Android 0.3.7 (code 9) now presents the requested mix's title and artwork with Starting and hides the old timeline until fresh receiver confirmation. A real Office transition from Just Being Myself to Nothing More Needed visually confirmed the corrected pending panel and then PLAYING for the requested source; 35 Android and 39 shared tests pass.

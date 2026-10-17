@@ -25,6 +25,18 @@ Track the selected device, receiver app/session, media session and source identi
 
 If state is stale or unknown, say so. Do not present an extrapolated playback position as a fresh receiver measurement. Receiver changes caused by voice, physical speaker controls or another controller must update the interface.
 
+### Plain-language playback status (2026-10-17)
+
+Only a confirmed idle receiver may be presented as “Nothing playing”. Use “Last played: …” when a previous in-memory track exists and “Choose a mix” otherwise. Genuine connection or synchronization work uses “Connecting…”, not “Checking playback…”. Unknown state must not be disguised as confirmed idle, and protocol phrases such as “No active Moozaq receiver” belong in diagnostics rather than the main player.
+
+### Play with a selected but unavailable destination (2026-10-17)
+
+An explicit Play click is the user's playback authorization and must not silently no-op when the selected destination is disconnected. Show Starting immediately, connect the current destination if needed, and wait at most 15 seconds for fresh readiness before starting once. Revalidate the target and intent generation before Play. Stop or a newer destination cancels the wait; failure remains explicit and never triggers a late or automatic playback retry. A missing destination still requires speaker selection rather than implicit playback.
+
+### Pending-mix presentation (2026-10-17)
+
+While a selected mix is starting, present that requested mix's title and artwork with a clear pending label. Do not pair Starting with the previous track's metadata or timeline. Hide the previous timeline until fresh receiver confirmation establishes the requested source; keep the underlying previous receiver state only for reconciliation, not as the pending presentation.
+
 ## Commands express intent and require confirmation
 
 - Send explicit play and pause intent rather than toggling a potentially stale state.
@@ -79,3 +91,10 @@ The progress slider and elapsed-time label hold the requested position during se
 ### Play and Pause feedback
 
 Play/resume and Pause show a pending button colour and Starting…/Pausing… label until confirmation. Keep the prior playback label while pending. Confirmation requires a fresh status for the intended media session; sending a command or seeing stale matching state is insufficient. Starting a selected mix uses the engine's load confirmation. Failures show Not confirmed, without automatic retry; Stop remains available and cancels pending transport feedback.
+
+
+### Compact handoff controls (2026-10-17)
+
+Stop casting and unchecking the last active participant use the same verified Stop operation. Keep Stopping… visible until verification advances the transport acknowledgement; failures remain explicit. Do not attempt an empty native group mutation. This supersedes disabling the final participant's checkbox. After a confirmed stop, last-track memory may offer Play again, which requires an explicit click and a ready destination.
+
+The handoff's condensed volume controls still include local Syncing…/Not confirmed text as well as pending colour. Preserve playback/recovery status while volume changes. Decorative reduced motion does not replace protocol status or confirmation.

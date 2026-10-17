@@ -1,0 +1,62 @@
+/* Moozaq UI tokens: Material 3 dark scheme */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..700&display=swap');
+:root {
+  --md-font: 'Roboto Flex', Roboto, system-ui, sans-serif;
+  --md-sys-color-primary: #FFB872;
+  --md-sys-color-on-primary: #4A2800;
+  --md-sys-color-primary-container: #6A3C00;
+  --md-sys-color-on-primary-container: #FFDCBE;
+  --md-sys-color-secondary-container: #59422D;
+  --md-sys-color-on-secondary-container: #FFDCBF;
+  --md-sys-color-tertiary: #A2D2A3;
+  --md-sys-color-surface: #10131A;
+  --md-sys-color-surface-container-lowest: #0B0E15;
+  --md-sys-color-surface-container-low: #181C22;
+  --md-sys-color-surface-container: #1C2026;
+  --md-sys-color-surface-container-high: #272A31;
+  --md-sys-color-surface-container-highest: #31353C;
+  --md-sys-color-on-surface: #E0E2EC;
+  --md-sys-color-on-surface-variant: #BFC7D9;
+  --md-sys-color-outline: #8991A2;
+  --md-sys-color-outline-variant: #3F4756;
+  --md-sys-color-error: #FFB4AB;
+  --md-sys-typescale-title-large-size: 22px;
+  --md-sys-typescale-title-large-line-height: 28px;
+  --md-sys-typescale-title-large-weight: 400;
+  --md-sys-typescale-title-large-tracking: 0px;
+  --md-sys-typescale-headline-small-size: 24px;
+  --md-sys-typescale-headline-small-line-height: 32px;
+  --md-sys-typescale-headline-small-weight: 400;
+  --md-sys-typescale-headline-small-tracking: 0px;
+  --md-sys-typescale-title-medium-size: 16px;
+  --md-sys-typescale-title-medium-line-height: 24px;
+  --md-sys-typescale-title-medium-weight: 600;
+  --md-sys-typescale-title-medium-tracking: 0.15px;
+  --md-sys-typescale-body-large-size: 16px;
+  --md-sys-typescale-body-large-line-height: 24px;
+  --md-sys-typescale-body-large-weight: 400;
+  --md-sys-typescale-body-large-tracking: 0.5px;
+  --md-sys-typescale-body-medium-size: 14px;
+  --md-sys-typescale-body-medium-line-height: 20px;
+  --md-sys-typescale-body-medium-weight: 400;
+  --md-sys-typescale-body-medium-tracking: 0.25px;
+  --md-sys-typescale-label-large-size: 14px;
+  --md-sys-typescale-label-large-line-height: 20px;
+  --md-sys-typescale-label-large-weight: 500;
+  --md-sys-typescale-label-large-tracking: 0.1px;
+  --md-sys-typescale-label-medium-size: 12px;
+  --md-sys-typescale-label-medium-line-height: 16px;
+  --md-sys-typescale-label-medium-weight: 500;
+  --md-sys-typescale-label-medium-tracking: 0.5px;
+  --mz-radius-card: 12px;
+  --mz-radius-cover: 10px;
+  --mz-radius-bar: 20px;
+  --mz-radius-pill: 20px;
+  --mz-radius-popover: 24px;
+  --mz-radius-dialog: 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mz-cover img { transition: none; transform: none !important; }
+  .mz-eq rect { animation: none; }
+}

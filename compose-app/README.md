@@ -17,7 +17,7 @@ Requires the existing `mac-spike/.venv` environment and Homebrew JDK 17. The lau
 - `composeApp/src/commonMain`: shared catalog, artwork resources, player state and Compose UI.
 - `composeApp/src/desktopMain`: desktop window and private JSON-lines subprocess adapter.
 - `bridge/server.py`: command bridge to the existing Python Cast engine. No network control endpoint; signed media URLs stay inside Python.
-- Android library target compiles the shared interface. A native Android Cast adapter and installable Compose Android app remain future work; the existing `android-spike` is separate.
+- `androidApp/`: installable standalone Compose Android app with on-device source resolution, native Google Cast and a private metadata cache. No Mac dependency. See [`androidApp/README.md`](androidApp/README.md); `android-spike` remains a separate reference.
 
 The Mac currently uses direct playback (route A). Relay/cache experiments remain in the Python reference. Closing the Compose window detaches the remote without stopping the receiver. Artwork and titles for the six starter mixes are bundled from the existing metadata cache; no refetch on selection. Unknown external sessions display their receiver title with a generic logo.
 
@@ -35,11 +35,11 @@ No automated check starts audio. Live playback, Android Cast integration, and lo
 
 ## Speakers and live membership
 
-Open the speaker control in the bottom player. A group checkbox selects that group as the destination for the next explicit Play; it connects passively and shows pending/confirmed connection state. Selecting a group never starts or transfers music. While idle, individual speaker checkboxes choose the next playback destination too, replacing any selected group. During playback, physical speaker checkboxes represent participants in the current music session, independently of the **Control** action that opens another remote. Supported audio sessions can add or remove speakers through native temporary Cast grouping. The final speaker stays selected; use Stop to end playback. Saved Google Home groups are not edited.
+Open the speaker control in the bottom player. A group checkbox selects that group as the destination for the next explicit Play; it connects passively and shows pending/confirmed connection state. Selecting a group never starts or transfers music. While idle, individual speaker checkboxes choose the next playback destination too, replacing any selected group. During playback, physical speaker checkboxes represent participants in the current music session. Clicking the device name opens its remote without moving music. Supported audio sessions can add or remove speakers through native temporary Cast grouping. Unchecking the final participant invokes the verified Stop flow; it does not submit an empty group. The player also exposes Stop casting. Saved Google Home groups are not edited.
 
 Membership changes retain the requested checkmarks with pending feedback until fresh receiver membership confirms the exact set. The bridge follows the returned session endpoint and observes delayed joins for up to 12 seconds; it never resends a failed mutation automatically. Errors remain explicit. Stop waits for the moved session to be located before claiming success.
 
-This Mac path is experimental and depends on receiver-advertised grouping and transfer support. A session must already be playing or paused. TV/video sessions are not offered as individual audio participants. Silent startup/reconnection never adds speakers, starts media, or restores volume. The Android adapter remains future work.
+This Mac path is experimental and depends on receiver-advertised grouping and transfer support. A session must already be playing or paused. TV/video sessions are not offered as individual audio participants. Silent startup/reconnection never adds speakers, starts media, or restores volume. Android now uses its own native Google Cast/MediaRouter adapter; its group behavior requires separate hardware verification.
 
 The remote remembers a physical group member for recovery. After a disconnected group has been absent from discovery for 15 seconds, it can reconnect to that member without recreating the group or changing music. Pending operations and healthy connections prevent fallback; legacy preferences without a known member require choosing another remote.
 
@@ -58,3 +58,15 @@ The browser presents horizontal mood shelves and only shows mixes with a known d
 Device glyphs use Google Material Design Icons (speaker, speaker_group, tv, smart_display, cast), Apache 2.0; license in `licenses/material-design-icons-LICENSE`. Icons follow discovered Cast type and known display models, not user-defined device names. Unknown types use the Cast fallback.
 
 The in-app header uses the owner's neon wordmark from `assets/branding/Moozaq-Wordmark/`; originals are preserved alongside the icon handoff. The bundled transparent PNG is displayed at its original aspect ratio.
+
+## Design handoff and silent visual preview
+
+The October 17 handoff is implemented with shared theme tokens, compact cards, a 136 dp bottom player, an anchored Cast picker and a Channels dialog. Reference files and implementation notes live in [`docs/design-handoff`](../docs/design-handoff/implementation-notes.md). The normal app always uses real receiver confirmations.
+
+For interactive visual QA without a Cast engine or network discovery:
+
+```sh
+JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./compose-app/gradlew -p compose-app :composeApp:designPreview
+```
+
+This separate test-source window is labeled **Mock data · No speakers**. Play, Pause, Stop, seek and volumes only update in-memory fixtures; its simulated acknowledgements are never packaged into the production app. Use Channels → Debug info → Reduce motion to suppress decorative card/equalizer animation. Roboto Flex is bundled under its OFL license in `licenses/`.

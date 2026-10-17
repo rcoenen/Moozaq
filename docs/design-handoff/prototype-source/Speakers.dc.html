@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moozaq – Speakers</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#10131A}
+a{color:#FFB872}a:hover{color:#FFDCBE}
+.mz-root{font-family:"Roboto Flex",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mz-icon-btn{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mz-icon-btn:hover{background:rgba(224,226,236,.08)}
+.mz-check{width:40px;height:40px;border:0;padding:0;border-radius:20px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.mz-check:hover:not(:disabled){background:rgba(255,184,114,.08)}
+.mz-check:disabled{cursor:default}
+.mz-range{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.mz-range:disabled{cursor:default}
+.mz-ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mz-num{font-variant-numeric:tabular-nums}
+.mz-list{scrollbar-width:thin;scrollbar-color:#3F4756 transparent}
+</style>
+</helmet>
+<div class="mz-root" style="position: relative; width: 1428px; height: 830px; overflow: hidden; background: #10131A">
+  <div style="position: absolute; inset: 0; z-index: 0">
+    <dc-import name="Main" first-shelf="{{one}}" still="{{yes}}" hint-size="1428px,830px"></dc-import>
+  </div>
+  <a href="Main.dc.html" aria-label="Close speakers" tabindex="-1" style="position: absolute; inset: 0; z-index: 1; background: rgba(0, 0, 0, 0.45); display: block"></a>
+
+  <div role="dialog" aria-modal="true" aria-labelledby="sp-title" style="position: absolute; z-index: 2; right: 40px; bottom: 152px; width: 480px; max-height: 640px; box-sizing: border-box; padding: 12px 12px 12px 16px; border-radius: 24px; background: #1C2026; box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55); display: flex; flex-direction: column; gap: 4px; color: #E0E2EC">
+    <div aria-hidden="true" style="position: absolute; right: 122px; bottom: -7px; width: 16px; height: 16px; background: #1C2026; transform: rotate(45deg); border-radius: 2px"></div>
+
+    <div style="display: flex; align-items: center">
+      <h2 id="sp-title" style="flex: 1; margin: 0; font-size: 22px; line-height: 28px; font-weight: 400">Cast to</h2>
+      <a href="Main.dc.html" class="mz-icon-btn" aria-label="Close" style="text-decoration: none">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill="#BFC7D9" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+      </a>
+    </div>
+
+    <div class="mz-list" style="flex: 1; min-height: 0; overflow-y: auto; margin-right: -4px; padding-right: 4px">
+    <sc-for list="{{rows}}" as="d" hint-placeholder-count="7">
+      <div style="display: flex; align-items: center; gap: 8px; height: 52px">
+        <button class="mz-check" type="button" role="checkbox" aria-checked="{{d.ariaChecked}}" aria-label="{{d.checkLabel}}" disabled="{{d.locked}}" onClick="{{d.toggle}}">
+          <sc-if value="{{d.checked}}" hint-placeholder-val="{{false}}">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="0" y="0" width="18" height="18" rx="3" fill="{{d.checkTint}}"></rect><path d="M4 9.2 L7.3 12.4 L14 5.8" fill="none" stroke="#4A2800" stroke-width="2"></path></svg>
+          </sc-if>
+          <sc-if value="{{d.unchecked}}" hint-placeholder-val="{{true}}">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2.5" fill="none" stroke="{{d.boxStroke}}" stroke-width="2"></rect></svg>
+          </sc-if>
+        </button>
+        <div style="width: 24px; height: 24px; flex-shrink: 0">
+          <sc-if value="{{d.isGroup}}" hint-placeholder-val="{{false}}">
+            <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Speaker group"><path fill="{{d.iconColor}}" d="M18.2 1H9.8C8.81 1 8 1.81 8 2.8v14.4c0 .99.81 1.79 1.8 1.79l8.4.01c.99 0 1.8-.81 1.8-1.8V2.8c0-.99-.81-1.8-1.8-1.8zM14 3c1.1 0 2 .89 2 2s-.9 2-2 2-2-.89-2-2 .9-2 2-2zm0 13.5c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"></path><path fill="{{d.iconColor}}" d="M6 5H4v16c0 1.1.89 2 2 2h10v-2H6V5z"></path></svg>
+          </sc-if>
+          <sc-if value="{{d.isTv}}" hint-placeholder-val="{{false}}">
+            <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="TV"><path fill="{{d.iconColor}}" d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"></path></svg>
+          </sc-if>
+          <sc-if value="{{d.isSpeaker}}" hint-placeholder-val="{{true}}">
+            <svg width="24" height="24" viewBox="0 0 24 24" role="img" aria-label="Speaker"><path fill="{{d.iconColor}}" d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 1.99 2 1.99L17 22c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c1.1 0 2 .9 2 2s-.9 2-2 2c-1.11 0-2-.9-2-2s.89-2 2-2zm0 16c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"></path></svg>
+          </sc-if>
+        </div>
+        <div class="mz-ell" style="width: 148px; flex-shrink: 0; font-size: 16px; line-height: 22px; letter-spacing: 0.3px; color: {{d.nameColor}}">{{d.name}}</div>
+        <div style="position: relative; height: 44px; flex: 1; margin-right: 8px">
+          <div style="position: absolute; top: 16px; left: 0; height: 12px; width: {{d.vol.activeW}}; background: {{d.vol.tint}}; border-radius: 6px 2px 2px 6px"></div>
+          <div style="position: absolute; top: 6px; left: {{d.vol.thumbL}}; width: 4px; height: 32px; border-radius: 2px; background: {{d.vol.tint}}"></div>
+          <div style="position: absolute; top: 16px; left: {{d.vol.inL}}; right: 0; height: 12px; background: #59422D; border-radius: 2px 6px 6px 2px"></div>
+          <input class="mz-range" type="range" min="0" max="100" step="1" value="{{d.volValue}}" aria-label="{{d.volLabel}}" disabled="{{d.volLocked}}" onChange="{{d.volInput}}" onPointerUp="{{d.volCommit}}" onKeyUp="{{d.volCommit}}">
+        </div>
+      </div>
+    </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1428,"height":830}}'>
+const DEVICES = [
+  { id: "all", name: "All speakers", kind: "group", volume: 16 },
+  { id: "tv", name: "Bedroom TV", kind: "tv", volume: 80 },
+  { id: "bedroom", name: "Bedroom speaker", kind: "speaker", volume: 16 },
+  { id: "fridge", name: "Fridge speaker", kind: "speaker", volume: 16 },
+  { id: "kitchen", name: "Kitchen speaker", kind: "speaker", volume: 16 },
+  { id: "kitchen1", name: "Kitchen speaker + 1", kind: "group", volume: 16 },
+  { id: "office", name: "Office speaker", kind: "speaker", volume: 16 }
+];
+const MUTED = "#BFC7D9", AMBER = "#FFB872", FG = "#E0E2EC";
+
+function track(f, tint) {
+  f = Math.min(1, Math.max(0, f));
+  return { tint: tint, activeW: "calc(" + f + " * (100% - 4px) - 6px)", thumbL: "calc(" + f + " * (100% - 4px))", inL: "calc(" + f + " * (100% - 4px) + 10px)" };
+}
+function put(obj, k, v) { const o = Object.assign({}, obj); if (v === undefined) delete o[k]; else o[k] = v; return o; }
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const vols = {};
+    DEVICES.forEach((d) => { vols[d.id] = d.volume; });
+    this.state = { members: ["office"], pending: {}, vols: vols, drag: {}, pendingVol: {} };
+  }
+  componentWillUnmount() { (this.timers || []).forEach(clearTimeout); }
+  later(ms, fn) { this.timers = this.timers || []; this.timers.push(setTimeout(fn, ms)); }
+
+  toggle(id) {
+    if (this.state.pending[id]) return;
+    const adding = !this.state.members.includes(id);
+    this.setState({ pending: put(this.state.pending, id, adding ? "add" : "remove") });
+    this.later(1200, () => {
+      const s = this.state;
+      this.setState({
+        members: adding ? s.members.concat([id]) : s.members.filter((m) => m !== id),
+        pending: put(s.pending, id)
+      });
+    });
+  }
+
+  renderVals() {
+    const st = this.state;
+    const rows = DEVICES.map((d) => {
+      const pend = st.pending[d.id];
+      const checked = pend ? pend === "add" : st.members.includes(d.id);
+      const volPending = st.pendingVol[d.id] != null;
+      const volValue = st.drag[d.id] ?? st.pendingVol[d.id] ?? st.vols[d.id];
+      return {
+        name: d.name,
+        isGroup: d.kind === "group", isTv: d.kind === "tv", isSpeaker: d.kind === "speaker",
+        iconColor: checked ? FG : MUTED,
+        nameColor: checked ? FG : MUTED,
+        checked: checked, unchecked: !checked, ariaChecked: checked ? "true" : "false",
+        checkTint: pend ? MUTED : AMBER, boxStroke: pend ? "#8991A2" : MUTED,
+        checkLabel: "Cast to " + d.name,
+        locked: !!pend,
+        toggle: () => this.toggle(d.id),
+        vol: track(volValue / 100, volPending ? MUTED : AMBER),
+        volValue: volValue,
+        valueColor: volPending ? MUTED : FG,
+        volLabel: d.name + " volume",
+        volLocked: volPending,
+        volInput: (e) => this.setState({ drag: put(this.state.drag, d.id, Number(e.target.value)) }),
+        volCommit: () => {
+          const v = this.state.drag[d.id];
+          if (v == null) return;
+          this.setState({ drag: put(this.state.drag, d.id), pendingVol: put(this.state.pendingVol, d.id, v) });
+          this.later(800, () => this.setState({
+            vols: put(this.state.vols, d.id, v),
+            pendingVol: put(this.state.pendingVol, d.id)
+          }));
+        }
+      };
+    });
+    return { one: 1, yes: true, rows: rows };
+  }
+}
+</script>
+</body>
+</html>

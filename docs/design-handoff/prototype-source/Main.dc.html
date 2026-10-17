@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moozaq – Browse and Now playing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#10131A}
+a{color:#FFB872}a:hover{color:#FFDCBE}
+.mz-root{font-family:"Roboto Flex",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mz-scroll{scrollbar-width:none}.mz-scroll::-webkit-scrollbar{display:none}
+.mz-card{position:relative;background:#1C2026;border-radius:12px;overflow:hidden;flex:0 0 240px;width:240px}
+.mz-card:hover{background:#272A31}
+.mz-card.mz-sel{background:#31353C}
+.mz-hit{position:absolute;inset:0;z-index:1;background:transparent;border:0;padding:0;margin:0;cursor:pointer;border-radius:12px}
+.mz-hit:focus-visible{outline:2px solid #FFB872;outline-offset:-2px}
+.mz-play{display:flex;opacity:0;transform:translateY(6px) scale(.9);transition:opacity .16s ease,transform .16s ease}
+.mz-card:hover .mz-play,.mz-card:focus-within .mz-play,.mz-play.mz-on{opacity:1;transform:none}
+.mz-cover{position:relative;overflow:hidden}
+.mz-cover img{transition:transform .3s ease}
+.mz-card:hover .mz-cover img{transform:scale(1.04)}
+.mz-scrim{position:absolute;inset:0;background:rgba(16,19,26,0);transition:background .2s ease;pointer-events:none}
+.mz-card:hover .mz-scrim,.mz-card.mz-now .mz-scrim{background:rgba(16,19,26,.35)}
+.mz-card.mz-now{outline:2px solid #FFB872;outline-offset:-2px}
+.mz-badge{position:absolute;left:10px;top:10px;height:24px;padding:0 10px 0 8px;border-radius:12px;background:rgba(16,19,26,.85);display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;font-weight:500;letter-spacing:.5px;color:#FFB872;pointer-events:none}
+@keyframes mz-eq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+.mz-eq rect{transform-origin:bottom;transform-box:fill-box;animation:mz-eq .9s ease-in-out infinite}
+.mz-eq rect:nth-child(2){animation-delay:-.3s}
+.mz-eq rect:nth-child(3){animation-delay:-.6s}
+.mz-eq.mz-paused rect{animation-play-state:paused}
+.mz-ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mz-num{font-variant-numeric:tabular-nums}
+.mz-clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mz-btn{cursor:pointer}
+.mz-btn:disabled{cursor:default}
+.mz-text-btn:hover{background:rgba(255,184,114,.08)}
+.mz-range{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.mz-range:disabled{cursor:default}
+@keyframes mz-spin{to{transform:rotate(360deg)}}
+.mz-spin{animation:mz-spin 1s linear infinite}
+</style>
+</helmet>
+<div class="mz-root" style="width: 1428px; height: 830px; box-sizing: border-box; padding: 24px; display: flex; flex-direction: column; gap: 16px; background: #10131A; color: #E0E2EC; overflow: hidden">
+
+  <div style="display: flex; align-items: center; gap: 12px">
+    <div style="flex: 1; display: flex; align-items: center; gap: 20px">
+      <img src="/_blob/cf3be73a2d65df8c26979f0acdcb9dc6" alt="Moozaq" style="width: 220px; height: 56px; object-fit: contain; object-position: left center; display: block; flex-shrink: 0">
+      <div style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: #BFC7D9; padding-top: 4px">Find your mood. Let it run.</div>
+    </div>
+    <a href="Channels.dc.html" class="mz-text-btn" style="height: 40px; padding: 0 12px; border-radius: 20px; display: flex; align-items: center; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; color: #FFB872; text-decoration: none">Channels</a>
+  </div>
+
+  <div class="mz-scroll" style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 24px">
+    <sc-for list="{{shelves}}" as="shelf" hint-placeholder-count="2">
+      <h2 style="position: sticky; top: 0; z-index: 3; margin: 0; padding: 12px 0; background: #10131A; font-size: 22px; line-height: 28px; font-weight: 400; color: #E0E2EC">{{shelf.name}}</h2>
+      <div class="mz-scroll" style="display: flex; gap: 16px; overflow-x: auto; flex-shrink: 0">
+        <sc-for list="{{shelf.mixes}}" as="m" hint-placeholder-count="6">
+          <div class="{{m.cardClass}}">
+            <button class="mz-hit" type="button" aria-label="{{m.previewLabel}}" onClick="{{m.preview}}"></button>
+            <div class="mz-cover">
+              <img src="{{m.cover}}" alt="" style="width: 240px; height: 135px; object-fit: cover; display: block">
+              <div class="mz-scrim"></div>
+              <sc-if value="{{m.isNow}}" hint-placeholder-val="{{false}}">
+                <div class="mz-badge"><svg class="{{m.eqClass}}" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="0" y="0" width="3" height="12" rx="1" fill="#FFB872"></rect><rect x="4.5" y="0" width="3" height="12" rx="1" fill="#FFB872"></rect><rect x="9" y="0" width="3" height="12" rx="1" fill="#FFB872"></rect></svg>{{m.badgeText}}</div>
+              </sc-if>
+              <button class="{{m.playClass}}" type="button" aria-label="{{m.playLabel}}" onClick="{{m.play}}" style="position: absolute; right: 10px; bottom: 10px; z-index: 2; width: 48px; height: 48px; border-radius: 24px; border: 0; padding: 0; background: #FFB872; align-items: center; justify-content: center; cursor: pointer">
+                <sc-if value="{{m.starting}}" hint-placeholder-val="{{false}}">
+                  <svg class="mz-spin" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="#4A2800" stroke-width="2" stroke-dasharray="40 100" stroke-linecap="round"></circle></svg>
+                </sc-if>
+                <sc-if value="{{m.showPlay}}" hint-placeholder-val="{{true}}">
+                  <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M5.5 2.2 L19.8 11 L5.5 19.8 Z" fill="#4A2800"></path></svg>
+                </sc-if>
+                <sc-if value="{{m.showPause}}" hint-placeholder-val="{{false}}">
+                  <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="5" y="4" width="4" height="14" rx="1" fill="#4A2800"></rect><rect x="13" y="4" width="4" height="14" rx="1" fill="#4A2800"></rect></svg>
+                </sc-if>
+              </button>
+            </div>
+            <div style="padding: 14px; display: flex; flex-direction: column; gap: 8px; pointer-events: none">
+              <div class="mz-clamp" style="font-size: 16px; line-height: 24px; height: 48px; letter-spacing: 0.5px; font-weight: 600; color: #E0E2EC">{{m.title}}</div>
+              <div style="font-size: 16px; line-height: 24px; letter-spacing: 0.5px; color: #BFC7D9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{m.creator}}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="height: 136px; box-sizing: border-box; border-radius: 20px; background: #1C2026; padding: 16px; display: flex; align-items: stretch; gap: 20px; flex-shrink: 0">
+    <sc-if value="{{isIdle}}" hint-placeholder-val="{{false}}">
+      <div style="position: relative; width: 104px; height: 104px; border-radius: 10px; background: #272A31; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden">
+        <sc-if value="{{hasLast}}" hint-placeholder-val="{{true}}">
+          <img src="{{lastCover}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.7">
+        </sc-if>
+        <sc-if value="{{noLast}}" hint-placeholder-val="{{false}}">
+          <svg style="position: relative" width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><path fill="#BFC7D9" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path></svg>
+        </sc-if>
+      </div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center">
+        <div style="font-size: 16px; line-height: 24px; letter-spacing: 0.15px; font-weight: 600">Nothing playing</div>
+        <div class="mz-ell" style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #BFC7D9">{{idleHint}}</div>
+      </div>
+    </sc-if>
+    <sc-if value="{{active}}" hint-placeholder-val="{{true}}">
+      <img src="{{now.cover}}" alt="" style="width: 104px; height: 104px; border-radius: 10px; object-fit: cover; display: block; flex-shrink: 0">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center">
+        <div class="mz-ell" style="font-size: 16px; line-height: 24px; letter-spacing: 0.15px; font-weight: 600">{{now.title}}</div>
+        <div style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #BFC7D9">{{statusLine}}</div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px">
+          <div class="mz-num" style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px; min-width: 36px">{{elapsed}}</div>
+          <div style="position: relative; height: 44px; flex: 1">
+            <div style="position: absolute; top: 16px; left: 0; height: 12px; width: {{seek.activeW}}; background: {{seek.tint}}; border-radius: 6px 2px 2px 6px"></div>
+            <div style="position: absolute; top: 6px; left: {{seek.thumbL}}; width: 4px; height: 32px; border-radius: 2px; background: {{seek.tint}}"></div>
+            <div style="position: absolute; top: 16px; left: {{seek.inL}}; right: 0; height: 12px; background: #59422D; border-radius: 2px 6px 6px 2px"></div>
+            <input class="mz-range" type="range" min="0" max="{{duration}}" step="1" value="{{seekValue}}" aria-label="Playback position" disabled="{{seekLocked}}" onChange="{{seekInput}}" onPointerUp="{{seekCommit}}" onKeyUp="{{seekCommit}}">
+          </div>
+          <div class="mz-num" style="font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.5px">{{total}}</div>
+        </div>
+      </div>
+    </sc-if>
+    <div style="display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; flex-shrink: 0">
+      <a href="Speakers.dc.html" class="mz-text-btn" aria-label="{{chipAria}}" style="height: 40px; padding: 0 10px 0 12px; box-sizing: border-box; border-radius: 20px; border: 1px solid #3F4756; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; text-decoration: none">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="{{chipIcon}}" d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"></path><path fill="{{chipFrame}}" d="M19 7H5v1.63c3.96 1.28 7.09 4.41 8.37 8.37H19V7z"></path></svg>
+        <span style="color: #BFC7D9">{{chipLead}}</span>
+        <span style="color: #E0E2EC">Office speaker</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#BFC7D9" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path></svg>
+      </a>
+      <sc-if value="{{showPlayAgain}}" hint-placeholder-val="{{false}}">
+          <button class="mz-btn" type="button" onClick="{{playAgain}}" disabled="{{playAgainBusy}}" style="height: 40px; padding: 0 20px 0 14px; border-radius: 20px; border: 0; background: #FFB872; color: #4A2800; display: flex; align-items: center; gap: 6px; font: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.1px; flex-shrink: 0">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4A2800" d="M8 5v14l11-7z"></path></svg>
+            {{playAgainLabel}}
+          </button>
+      </sc-if>
+      <sc-if value="{{active}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="{{vol.tint}}" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path></svg>
+          <div style="position: relative; height: 44px; width: 112px; margin-left: -4px">
+            <div style="position: absolute; top: 16px; left: 0; height: 12px; width: {{vol.activeW}}; background: {{vol.tint}}; border-radius: 6px 2px 2px 6px"></div>
+            <div style="position: absolute; top: 6px; left: {{vol.thumbL}}; width: 4px; height: 32px; border-radius: 2px; background: {{vol.tint}}"></div>
+            <div style="position: absolute; top: 16px; left: {{vol.inL}}; right: 0; height: 12px; background: #59422D; border-radius: 2px 6px 6px 2px"></div>
+            <input class="mz-range" type="range" min="0" max="100" step="1" value="{{volValue}}" aria-label="Volume" disabled="{{volLocked}}" onChange="{{volInput}}" onPointerUp="{{volCommit}}" onKeyUp="{{volCommit}}">
+          </div>
+          <button class="mz-btn" type="button" onClick="{{stop}}" style="height: 40px; padding: 0 20px; border-radius: 20px; border: 1px solid #8991A2; background: transparent; color: #FFB872; font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.1px">Stop casting</button>
+          <button class="mz-btn" type="button" onClick="{{toggle}}" disabled="{{awaiting}}" style="min-width: 96px; height: 40px; padding: 0 20px; border-radius: 20px; border: 0; background: {{toggleBg}}; color: {{toggleFg}}; font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.1px">{{toggleLabel}}</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"playback":{"editor":"enum","options":["playing","stopped","fresh"],"default":"playing"},"firstShelf":{"editor":"int","default":0,"min":0,"max":3},"still":{"editor":"boolean","default":false},"$preview":{"width":1428,"height":830}}'>
+const SHELVES = [{"name": "Cozy Jazz / Swing", "mixes": [{"title": "Just Being Myself. – Warm, Cozy Vintage Jazz for Autumn Relaxation", "creator": "Sepia Lounge", "cover": "/_blob/771e6c0326e47ff6c078e58fe1358e3e"}, {"title": "Nothing More Needed. – Warm, Smoky Vintage Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/0c3e02ab4ff4df37a6062fd85c3c3535"}, {"title": "Doing My Best. – Warm, Smoky 1940s Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/6c2bd3e3eda888c7dd7721752a0355c0"}, {"title": "Make It Strong. – Cozy Coffee Jazz for Slow Moments", "creator": "Sepia Lounge", "cover": "/_blob/499a663ef542b3d9e2e0434e184904a6"}, {"title": "Coming? – Smooth Retro Jazz for Late Nights", "creator": "Sepia Lounge", "cover": "/_blob/c19fc3f8ecb4b9a5ac853e5cd82bbf87"}, {"title": "Let It Burn. – Vintage 1940s Jazz for Late Nights", "creator": "Sepia Lounge", "cover": "/_blob/b719b856b22745db9947fe365bc7dac6"}]}, {"name": "Dark Jazz / Trip-Hop", "mixes": [{"title": "Dark Jazz & Cinematic Trip-Hop // Midnight Fever Motel // Dawn Is Still Hours Away", "creator": "Jazz Haze", "cover": "/_blob/c948ed1d75eab7e14b41f37b9ae8ca9b"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Golden Vice Club // The Night Begins", "creator": "Jazz Haze", "cover": "/_blob/15207947ae0a0e96071a276b1e4fb10e"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Red Halo Motel // 3 AM on an Endless Highway", "creator": "Jazz Haze", "cover": "/_blob/ac718e58403fa41bfa4d32ed7e34486e"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Cherry Static Fever // Late Night Drive", "creator": "Jazz Haze", "cover": "/_blob/e386870af95eb2296a7c3b37cefa8126"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Dangerous Summer Love // Keep Driving", "creator": "Jazz Haze", "cover": "/_blob/899159953f6f773bca86861c44e1e23b"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Scarlet City Nights // Music for Driving After Dark", "creator": "Jazz Haze", "cover": "/_blob/82f16d03ff99648adaaad1a4b950426a"}]}, {"name": "Desert / Psychedelia", "mixes": [{"title": "THE LAST RUN TO ELKO | Spaghetti Western Surf, Desert Exotica & Cold War Noir", "creator": "Noir Tiki Lounge", "cover": "/_blob/0f615dc275dd1ef07c4f36ca6c535e54"}, {"title": "THE SCORPION'S LAIR – Hypnotic Desert Noir & Dark Arabic Exotica (High Fidelity Stereo)", "creator": "Noir Tiki Lounge", "cover": "/_blob/ad6cc78bdd172cadb6c241ef375de1b3"}, {"title": "Midnight Séance | Psychedelic Vintage Dark Exotica Lounge", "creator": "Noir Tiki Lounge", "cover": "/_blob/07cfb2ae17884cc23ba0c0d0ab237092"}, {"title": "Cosmic Mirage| Psychedelic Vintage Dark Exotica Lounge", "creator": "Noir Tiki Lounge", "cover": "/_blob/049d040b6b07c5a3d74f7ca5769cbdcc"}, {"title": "SPAGHETTI CUMBIA | Desert Noir & Psychedelic Vintage Lounge", "creator": "Noir Tiki Lounge", "cover": "/_blob/eccab436fab76b20ee2a82cad55c0f44"}, {"title": "THE FARFISA MIRAGE | Psychedelic 60s Vintage Lounge & Hypnotic Organ", "creator": "Noir Tiki Lounge", "cover": "/_blob/46574b3c62e5ed0a8a538978d7b7f2d8"}]}, {"name": "Noir Jazz", "mixes": [{"title": "This Suits Me. – Smoky Noir Jazz for Quiet City Nights", "creator": "Sepia Lounge", "cover": "/_blob/89d76d27ddf1a0c0925ac69f71b3670c"}, {"title": "Keeping You Company. – Chill Vintage Noir Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/13108a7f66e34c57e6cfc6bd263ae914"}, {"title": "I’m Staying Put. – Cozy, Quiet Vintage Noir Jazz for Relaxation & Unwinding", "creator": "Sepia Lounge", "cover": "/_blob/b28a0e9fd7106a6ed83b2776576621de"}, {"title": "Plenty of Time. – Chill Vintage Noir Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/8a273d8a0f23d84c0cbf310a48a1b05f"}, {"title": "Vintage Noir Jazz for Quiet Nights – The World Can Wait.", "creator": "Sepia Lounge", "cover": "/_blob/21173e0a779d612cb923b83a7b6c8555"}, {"title": "Ease Into It. – Warm Vintage Noir Jazz for Quiet Moments", "creator": "Sepia Lounge", "cover": "/_blob/085ca9d60b87899c4c5d39438fab4ada"}]}];
+
+function clock(t) {
+  t = Math.max(0, Math.floor(t || 0));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? h + ":" + String(m).padStart(2, "0") + ":" + ss : m + ":" + ss;
+}
+function track(f, tint) {
+  f = Math.min(1, Math.max(0, f));
+  return {
+    tint: tint,
+    activeW: "calc(" + f + " * (100% - 4px) - 6px)",
+    thumbL: "calc(" + f + " * (100% - 4px))",
+    inL: "calc(" + f + " * (100% - 4px) + 10px)"
+  };
+}
+
+function initial(mode) {
+  mode = mode || "playing";
+  return {
+    now: mode === "fresh" ? null : SHELVES[3].mixes[0],
+    receiver: mode === "playing" ? "PLAYING" : "IDLE",
+    position: mode === "playing" ? 3024 : 0, duration: 12415,
+    transport: null, starting: null, seekDrag: null, seekPending: null
+  };
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = Object.assign(initial(props.playback), {
+      volume: 16, preview: null, volDrag: null, volPending: null
+    });
+  }
+  componentDidUpdate(prev) {
+    if (prev.playback !== this.props.playback) this.setState(initial(this.props.playback));
+  }
+  componentDidMount() {
+    if (this.props.still) return;
+    this.tick = setInterval(() => {
+      if (this.state.receiver === "PLAYING" && this.state.seekPending == null)
+        this.setState({ position: Math.min(this.state.duration, this.state.position + 1) });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.tick); (this.timers || []).forEach(clearTimeout); }
+  later(ms, fn) { this.timers = this.timers || []; this.timers.push(setTimeout(fn, ms)); }
+
+  toggle() {
+    if (this.state.transport) return;
+    const pausing = this.state.receiver === "PLAYING";
+    if (!pausing && this.state.receiver !== "PAUSED") return;
+    this.setState({ transport: { expected: pausing ? "PAUSED" : "PLAYING", previous: this.state.receiver } });
+    this.later(1300, () => this.setState({ receiver: pausing ? "PAUSED" : "PLAYING", transport: null }));
+  }
+  stop() {
+    this.setState({ transport: { expected: "IDLE", previous: this.state.receiver } });
+    this.later(900, () => this.setState({ receiver: "IDLE", transport: null, position: 0 }));
+  }
+  play(mix, key) {
+    if (this.state.starting) return;
+    this.setState({ starting: key });
+    this.later(1600, () => this.setState({ starting: null, now: mix, receiver: "PLAYING", position: 0, duration: 7200 + Math.floor(Math.random() * 6000) }));
+  }
+
+  renderVals() {
+    const st = this.state;
+    const first = Math.max(0, Math.min(3, this.props.firstShelf ?? 0));
+    const shelves = SHELVES.slice(first).map((shelf, si) => ({
+      name: shelf.name,
+      mixes: shelf.mixes.map((m, mi) => {
+        const key = (si + first) + ":" + mi;
+        const starting = st.starting === key;
+        const isNow = !!st.now && st.now.title === m.title && st.receiver !== "IDLE";
+        const nowPlaying = isNow && st.receiver === "PLAYING";
+        return Object.assign({}, m, {
+          cardClass: "mz-card" + (st.preview === key ? " mz-sel" : "") + (isNow ? " mz-now" : ""),
+          playClass: "mz-play" + (starting ? " mz-on" : ""),
+          starting: starting,
+          showPlay: !starting && !nowPlaying, showPause: !starting && nowPlaying,
+          isNow: isNow,
+          badgeText: nowPlaying ? "Now playing" : "Paused",
+          eqClass: "mz-eq" + (nowPlaying ? "" : " mz-paused"),
+          previewLabel: "Preview " + m.title,
+          playLabel: (starting ? "Starting " : nowPlaying ? "Pause " : isNow ? "Resume " : "Play ") + m.title,
+          preview: () => this.setState({ preview: key }),
+          play: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (isNow) this.toggle(); else this.play(m, key); }
+        });
+      })
+    }));
+
+    const r = st.receiver, t = st.transport;
+    const awaiting = !!t;
+    const cap = (x) => x ? x.charAt(0) + x.slice(1).toLowerCase() : "";
+    const statusText = awaiting ? cap(t.previous) : (r === "IDLE" ? "Idle" : cap(r));
+    const canToggle = r === "PLAYING" || r === "PAUSED";
+    const toggleLabel = awaiting
+      ? (t.expected === "PAUSED" ? "Pausing…" : t.expected === "IDLE" ? "Stopping…" : "Starting…")
+      : (r === "PLAYING" ? "Pause" : "Resume");
+
+    const seekValue = st.seekDrag ?? st.seekPending ?? st.position;
+    const seekTint = st.seekPending != null ? "#BFC7D9" : "#FFB872";
+    const volValue = st.volDrag ?? st.volPending ?? st.volume;
+    const volTint = st.volPending != null ? "#BFC7D9" : "#FFB872";
+
+    const isIdle = r === "IDLE" && !t;
+    const last = st.now;
+    return {
+      shelves: shelves,
+      now: st.now || {},
+      isIdle: isIdle, active: !isIdle,
+      hasLast: !!last, noLast: !last,
+      lastCover: last ? last.cover : "",
+      idleHint: last ? "Last played: " + last.title : "Pick a mix above to start playing on Office speaker",
+      playAgain: () => { if (last) this.play(last, "again"); },
+      playAgainBusy: !!st.starting,
+      playAgainLabel: st.starting === "again" ? "Starting…" : "Play again",
+      chipLead: isIdle ? "Cast to" : "Casting to",
+      chipIcon: isIdle ? "#BFC7D9" : "#A2D2A3",
+      chipFrame: isIdle ? "transparent" : "#A2D2A3",
+      chipAria: (isIdle ? "Cast to" : "Casting to") + " Office speaker. Choose devices",
+      statusText: statusText,
+      statusLine: st.seekPending != null ? "Seeking…" : statusText + " · " + ((st.now && st.now.creator) || ""),
+      showPlayAgain: isIdle && !!last,
+      awaiting: awaiting || !canToggle,
+      toggleLabel: toggleLabel,
+      toggleBg: awaiting ? "#BFC7D9" : canToggle ? "#FFB872" : "#31353C",
+      toggleFg: awaiting ? "#10131A" : canToggle ? "#4A2800" : "#E0E2EC",
+      toggle: () => this.toggle(),
+      stop: () => this.stop(),
+      elapsed: clock(seekValue),
+      total: clock(st.duration),
+      duration: st.duration,
+      seekValue: seekValue,
+      seekPending: st.seekPending != null,
+      seekLocked: st.seekPending != null || r === "IDLE",
+      seek: track(seekValue / st.duration, seekTint),
+      seekInput: (e) => this.setState({ seekDrag: Number(e.target.value) }),
+      seekCommit: () => {
+        if (st.seekDrag == null) return;
+        const target = this.state.seekDrag;
+        this.setState({ seekDrag: null, seekPending: target });
+        this.later(1100, () => this.setState({ position: target, seekPending: null }));
+      },
+      volValue: volValue,
+      volLocked: st.volPending != null,
+      vol: track(volValue / 100, volTint),
+      volLabel: st.volPending != null ? "Syncing…" : "Volume",
+      volLabelColor: st.volPending != null ? "#BFC7D9" : "#E0E2EC",
+      volInput: (e) => this.setState({ volDrag: Number(e.target.value) }),
+      volCommit: () => {
+        if (st.volDrag == null) return;
+        const target = this.state.volDrag;
+        this.setState({ volDrag: null, volPending: target });
+        this.later(900, () => this.setState({ volume: target, volPending: null }));
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

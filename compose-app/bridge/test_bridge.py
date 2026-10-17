@@ -73,6 +73,30 @@ class BridgeSafety(unittest.TestCase):
         lab.command.assert_not_called()
         lab.stop_verified.assert_not_called()
 
+    def test_stop_revision_waits_for_verified_receiver_result(self):
+        bridge, lab = self.make()
+        revision = bridge.transport_revision
+        with patch('server.threading.Thread') as thread:
+            bridge.dispatch({'op': 'stop'})
+            self.assertEqual(bridge.transport_revision, revision)
+            lab.stop_verified.side_effect = lambda: self.assertEqual(bridge.transport_revision, revision)
+            thread.call_args.kwargs['target']()
+        self.assertEqual(bridge.transport_revision, revision + 1)
+        self.assertFalse(bridge.stopping)
+        lab.play_selection.assert_not_called()
+
+    def test_failed_stop_never_acknowledges_or_retries(self):
+        bridge, lab = self.make()
+        revision = bridge.transport_revision
+        lab.stop_verified.side_effect = RuntimeError('Receiver unavailable')
+        with patch('server.threading.Thread') as thread:
+            bridge.dispatch({'op': 'stop'})
+            thread.call_args.kwargs['target']()
+        self.assertEqual(bridge.transport_revision, revision)
+        self.assertIn('Stop unconfirmed', bridge.message)
+        lab.stop_verified.assert_called_once()
+        lab.play_selection.assert_not_called()
+
     def test_invalid_volume_never_reaches_receiver(self):
         bridge, lab = self.make()
         for value in (-1, 2, float('nan')):
@@ -115,6 +139,21 @@ class BridgeSafety(unittest.TestCase):
         s = bridge.snapshot()
         self.assertFalse(s['receiver']['connected'])
         self.assertTrue(s['connecting'])
+
+    def test_verified_handoff_does_not_wait_for_second_discovery_connection(self):
+        from test_recovery import observed
+        bridge, lab = self.make()
+        bridge.target = lab.selected_id = 'new-group'
+        lab.status.return_value = {'connected': True, 'state': 'PLAYING'}
+        bridge.membership.confirmed_receiver = Mock(return_value=observed('new-group'))
+        # No mDNS record / output monitor socket yet.
+        self.assertEqual(bridge.outputs.recovery_rows(), [])
+        state = bridge.snapshot()
+        self.assertTrue(state['receiver']['connected'])
+        self.assertFalse(state['connecting'])
+        self.assertEqual(state['receiver']['title'], 'Our mix')
+        lab.connect.assert_not_called()
+        lab.play_selection.assert_not_called()
 
     def test_player_reads_fresh_observation_instead_of_stale_main_socket(self):
         from test_recovery import observed

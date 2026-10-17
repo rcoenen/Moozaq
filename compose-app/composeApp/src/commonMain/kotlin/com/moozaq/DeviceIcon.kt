@@ -25,7 +25,7 @@ fun deviceKind(device: Device): DeviceKind {
 }
 
 @Composable
-fun DeviceIcon(device: Device) {
+fun DeviceIcon(device: Device, tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant) {
     val kind = deviceKind(device)
     val resource = when(kind) {
         DeviceKind.GROUP -> Res.drawable.device_speaker_group
@@ -34,5 +34,5 @@ fun DeviceIcon(device: Device) {
         DeviceKind.DISPLAY -> Res.drawable.device_smart_display
         DeviceKind.CAST -> Res.drawable.device_cast
     }
-    Icon(painterResource(resource), kind.label, Modifier.size(24.dp), tint=MaterialTheme.colorScheme.secondary)
+    Icon(painterResource(resource), kind.label, Modifier.size(24.dp), tint=tint)
 }

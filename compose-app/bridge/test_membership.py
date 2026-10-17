@@ -30,7 +30,7 @@ def cast(uid, host):
     result.socket_client.is_connected = True
     result.status.session_id = 'app-session'
     result.media_controller.status = SimpleNamespace(content_id='stream', title=None, media_custom_data={},
-                                                     player_state='PLAYING', adjusted_current_time=40)
+                                                     player_state='PLAYING', adjusted_current_time=40, duration=7200)
     return result
 
 
@@ -181,7 +181,7 @@ class MembershipTests(unittest.TestCase):
         candidate = cast(GROUP, '192.168.8.106')
         candidate.cast_type = 'group'
         evidence = EvidenceListener()
-        candidate.media_controller.update_status.side_effect = evidence.media.set
+        candidate.media_controller.update_status.side_effect = lambda: evidence.new_media_status(candidate.media_controller.status)
         new_controller = Mock()
         new_controller.refresh.return_value = status(observed_members or requested)
         with patch('membership.pychromecast.get_chromecast_from_cast_info', return_value=candidate), \
@@ -208,6 +208,19 @@ class MembershipTests(unittest.TestCase):
         candidate.media_controller.play_media.assert_not_called()
         candidate.set_volume.assert_not_called()
         self.lab.play_selection.assert_not_called()
+
+    def test_handoff_evidence_is_available_before_discovery_and_expires(self):
+        candidate = self.perform_confirmed_change()
+        self.assertEqual(self.service.confirmed_receiver()['id'], GROUP)
+        self.assertEqual(self.service.confirmed_receiver()['state'], 'PLAYING')
+        self.assertIn(GROUP, self.service.temporary_ids)
+        evidence = self.service.handoff[1]
+        evidence.media_at -= 20
+        self.assertIsNone(self.service.confirmed_receiver())
+        evidence.new_media_status(candidate.media_controller.status)
+        candidate.status.session_id = 'different-session'
+        self.assertIsNone(self.service.confirmed_receiver())
+        candidate.media_controller.play_media.assert_not_called()
 
     def test_stop_after_send_follows_endpoint_before_stopping(self):
         candidate = self.perform_confirmed_change(stop_after_send=True)

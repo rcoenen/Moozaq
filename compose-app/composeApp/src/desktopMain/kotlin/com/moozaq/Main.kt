@@ -17,8 +17,8 @@ fun main() = application {
     val store = remember { PlayerStore(backend, scope) }
     LaunchedEffect(Unit) { store.start() }
     DisposableEffect(Unit) { onDispose { backend.close() } }
-    Window(onCloseRequest=::exitApplication, title="Moozaq", state=rememberWindowState(width=1120.dp,height=850.dp), icon=painterResource(Res.drawable.logo)) {
-        window.minimumSize=java.awt.Dimension(760,650)
+    Window(onCloseRequest=::exitApplication, title="Moozaq", state=rememberWindowState(width=1428.dp,height=830.dp), icon=painterResource(Res.drawable.logo)) {
+        window.minimumSize=java.awt.Dimension(1100,650)
         MoozaqApp(store)
     }
 }

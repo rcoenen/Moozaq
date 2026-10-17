@@ -4,6 +4,7 @@ import threading
 import time
 
 import pychromecast
+from pychromecast import dial
 from engine import install_passive_status, receiver_identity, discovered_cast_infos
 from membership import ObservedController, member_ids
 from volume import VolumeTracker
@@ -84,7 +85,32 @@ class OutputMonitor:
         self.lab = lab
         self.lock = threading.RLock()
         self.entries = {}
+        self.dynamic_groups = {}
+        self.topology_checked = {}
         self.closed = threading.Event()
+
+    def temporary_ids(self):
+        with self.lock:
+            return set().union(*self.dynamic_groups.values()) if self.dynamic_groups else set()
+
+    def read_dynamic_groups(self, info):
+        # Classify using receiver metadata, never friendly-name patterns such as '+ 1'.
+        if getattr(info, 'cast_type', None) != 'audio':
+            return
+        now = time.monotonic()
+        with self.lock:
+            if now - self.topology_checked.get(str(info.uuid), -30) < 30:
+                return
+            self.topology_checked[str(info.uuid)] = now
+        try:
+            _, data = dial._get_status(info.services, self.lab.zconf,
+                                      '/setup/eureka_info?params=multizone', True, 2, None)
+            from membership import canonical
+            ids = {canonical(row['uuid']) for row in data.get('multizone', {}).get('dynamic_groups', [])}
+            with self.lock:
+                self.dynamic_groups[str(info.uuid)] = ids
+        except Exception:
+            pass  # Keep known classification through an unavailable topology endpoint.
 
     def snapshot(self):
         infos = {str(i.uuid): i for i in discovered_cast_infos(self.lab.browser)}
@@ -142,6 +168,7 @@ class OutputMonitor:
             with entry.lock:
                 entry.members = member_ids(status)
                 entry.members_at = time.monotonic()
+        self.read_dynamic_groups(info)
 
     def set_volume(self, uid, value):
         with self.lock:

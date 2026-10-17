@@ -65,6 +65,8 @@ class MembershipService:
         self.lock = threading.RLock()
         self.cast = self.controller = None
         self.same_endpoint_evidence = None
+        self.handoff = None
+        self.temporary_ids = set()
         self.observed = None
         self.binding = None
         self.token = None
@@ -137,11 +139,37 @@ class MembershipService:
                 cast = self.lab.cast
                 if cast is not None and cast.socket_client.is_connected and not self.bridge.busy:
                     controller = self.controller_for(cast)
+                    if self.handoff and self.handoff[0] is cast:
+                        # Keep the adopted endpoint authoritative even if its
+                        # multicast announcement has not appeared yet.
+                        cast.media_controller.update_status()
                     status = controller.refresh()
                     self._record(cast, status)
             except Exception as exc:
                 self.lab.log('playback-membership-status', type(exc).__name__)
             self.closed.wait(3)
+
+    def confirmed_receiver(self):
+        """Fresh evidence from the verified handoff socket, before mDNS catches up."""
+        with self.lock:
+            if self.handoff is None:
+                return None
+            cast, evidence, session, fingerprint = self.handoff
+            now = time.monotonic()
+            media = cast.media_controller.status
+            if (cast is not self.lab.cast or not cast.socket_client.is_connected
+                    or now - evidence.media_at >= 12 or cast.status.session_id != session
+                    or receiver_identity(media)[0] != fingerprint
+                    or media.player_state not in ACTIVE):
+                return None
+            observed = self.observed
+            if not observed or observed[0] is not cast or now - observed[2] >= 12:
+                return None
+            return dict(id=str(cast.uuid), fresh=True, state=media.player_state,
+                        content_key=fingerprint, title=media.title,
+                        source=receiver_identity(media)[1], position=media.adjusted_current_time,
+                        duration=media.duration, volume=cast.status.volume_level,
+                        members=member_ids(observed[1]))
 
     def prepare(self, devices, token):
         # Caller holds bridge.lock, making preparation and start indivisible.
@@ -228,8 +256,11 @@ class MembershipService:
                     self._record(cast, new_status)
                 new_controller = controller
                 confirmed_session = session
+                self.handoff = (cast, evidence, session, fingerprint)
             else:
                 info = endpoint_info(endpoint, desired, infos, cast)
+                if info.cast_type == 'group':
+                    self.temporary_ids.add(str(info.uuid))
                 candidate = pychromecast.get_chromecast_from_cast_info(info, self.lab.zconf, tries=1, timeout=3)
                 install_passive_status(candidate)
                 evidence = EvidenceListener()
@@ -260,6 +291,7 @@ class MembershipService:
                     self.observed = None
                     self.uncertain = False
                     self._record(candidate, new_status)
+                    self.handoff = (candidate, evidence, endpoint.get('sessionId'), fingerprint)
                     candidate = None
                 cast.disconnect()
                 confirmed_session = endpoint.get('sessionId')
@@ -333,6 +365,7 @@ class MembershipService:
                 raise ValueError('Wait for the speaker change to finish.')
             self.pending = self.error = None
             self.uncertain = False
+            self.handoff = None
             self.observed = None
             self.binding = self.token = None
 

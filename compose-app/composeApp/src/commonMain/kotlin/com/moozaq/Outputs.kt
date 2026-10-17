@@ -42,6 +42,7 @@ fun reconcileDestination(request: PendingDestination?, snapshot: Snapshot): Pend
     request ?: return null
     return when {
         snapshot.target == request.id && snapshot.receiver.connected && !snapshot.connecting -> null
+        snapshot.target == request.id && snapshot.connection_error != null -> request.copy(failed=true)
         request.started.elapsedNow().inWholeSeconds >= 20 -> request.copy(failed=true)
         else -> request
     }

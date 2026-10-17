@@ -118,7 +118,7 @@ Keep reports in ignored `mac-spike/data/`. Never log credentials or signed media
 - **Audible:** all four saved-group members worked after the passive-status fix in one session. Kitchen/Bedroom shared a temporary session; the owner later heard Office join the existing temporary mix through the Mac checkbox.
 - **Receiver-state verified:** native Mac expansion/contraction, in-place expansion without an endpoint, exact membership convergence, and independent-session preservation in the recorded scenarios.
 - **Silent tests:** stale evidence, cancellation, pending state, endpoint validation, discovery race, monitor recovery and session-following decisions. See the evidence log for test counts at each change.
-- **Not established:** repeated cold starts across devices/firmware, measured acoustic synchronization, leader failover, three-hour reliability, Android rejoining, or complete source coverage. Simulated recovery is not proof of every live migration case.
+- **Not established:** repeated cold starts across devices/firmware, measured acoustic synchronization, leader failover, three-hour reliability, Android rejoining beyond the limited 0.3.3 Office validation below, or complete source coverage. Simulated recovery is not proof of every live migration case.
 - **Unresolved:** historical SSL BAD_LENGTH/BAD_RECORD_MAC failures. A similar upstream report exists, but does not prove our cause or justify weakening TLS settings.
 - **Separate question:** successful direct YouTube audio playback without Premium does not establish production distribution or music rights permission.
 
@@ -134,3 +134,50 @@ These were consulted during the investigation; local behavior and version-specif
 - [Home Assistant issue 141619](https://github.com/home-assistant/core/issues/141619): similar SSL BAD_LENGTH report, closed without an established fix.
 
 When a new issue is understood, update the relevant rule here and append the dated experiment, observed outcome and limitations to [spike-results.md](spike-results.md). Keep failed hypotheses as historical evidence rather than presenting them as current implementation limits.
+
+## Android source compatibility and transient errors
+
+A successful tiny Range request is not sufficient to validate a direct receiver
+URL. On October 17 the old Android resolver produced AAC URLs with HTTP 206 for
+a ranged request but HTTP 403 for an ordinary GET. Pinning the same upstream
+resolver version as Mac changed the phone’s ordinary fetch to HTTP 200. Test
+ordinary header-free access before LOAD, read only a bounded amount, and keep
+the URL private. Check cancellation and session binding again after preflight.
+A successful phone fetch still does not establish Nest playback.
+
+Google’s LOAD acknowledgement only establishes acceptance of the request. Keep
+watching for the expected content in PLAYING, and latch a subsequent explicit
+ERROR while that attempt is active; empty later statuses must not turn it into
+an unexplained timeout. Ignore failures belonging to previously observed media.
+See [Google’s media status definitions](https://developers.google.com/android/reference/com/google/android/gms/cast/MediaStatus)
+and the dated Android investigation in [spike results](spike-results.md).
+
+On Android, discovery gaps should mark remembered device rows unavailable, not
+remove/reinsert them or resize the picker. Preserve sorting and row identity.
+An explicit SDK connection failure should release the pending state immediately
+and allow a manual retry; never infer PLAYING or send LOAD as part of recovery.
+
+
+### Android cold-start recovery and SDK error 2152 (2026-10-17)
+
+The owner's Android log confirmed PLAYING, followed by app close, a cold start with no current session, `onSessionResuming`, and a failed resume with 2152 ten seconds later. The old backend then had neither an attached session nor a remembered destination. Do not interpret that as Nothing playing: the owner could still hear Bedroom.
+
+A [report in Google's sample project](https://github.com/googlecast/CastVideos-android/issues/144) reproduces error 2152 after killing/reopening Cast SDK 22.x apps. This is corroborating evidence, not a definitive diagnosis of our SDK internals. [Google's SessionManager documentation](https://developers.google.com/android/reference/com/google/android/gms/cast/framework/SessionManager) states that failed resume unselects the route; enabling saved-session resume alone therefore does not guarantee recovery.
+
+Android 0.3.2 remembers stable Cast device ID plus route/name/type, keeps an unavailable placeholder until discovery, and lets native restoration run first. After failure it checks only that remembered LAN endpoint using a bounded Cast receiver GET_STATUS probe. It selects the rediscovered route only when the Default Media Receiver is already running, with `LaunchOptions.relaunchIfRunning=false`. No LOAD/PLAY/seek/volume or extraction runs in recovery. A different receiver app, missing device or failed probe remains unconfirmed; checks back off from 5 to 30 seconds. Manual selection and backgrounding invalidate pending probes. This fallback is a status check followed by SDK selection, not an atomic join-only API; a receiver-app change between those steps remains a race to investigate.
+
+Reconstruct media identity from receiver-returned Moozaq customData and its content hash, not a title match or remembered Playing flag. Persist no signed URL and no authoritative media state. Read current position and volume only after attaching.
+
+### Android 0.3.3 post-probe guard and faster rejoin (2026-10-17)
+
+Recheck the current SDK session after every asynchronous passive probe, not only before it. Fallback route selection must yield to connected, connecting, resuming and suspended sessions at both decision points; sharing one predicate avoids the observed omission of `isResuming` after the probe. This still does not make the subsequent route selection atomic with the earlier receiver-status response.
+
+With native saved-session restoration disabled and a 500 ms foreground grace, two Office cold-process reopens reached fresh PLAYING in 2.600 and 1.884 seconds, and warm foregrounding received fresh media in 0.090 seconds. Source and application-session fingerprints stayed unchanged and recovery emitted no media/source/volume commands. This supports the faster configuration for one explicitly authorized Office session; it does not prove other devices, network transitions or long sessions. See `spike-results.md` for the authorized playback setup and evidence boundaries.
+
+### Android 2155 and route-change reconciliation (2026-10-17)
+
+`CastContext.getCastReasonCodeForCastStatusCode()` depends on an asynchronously loaded reason bundle. Do not interpret an immediate zero as `UNKNOWN_REASON` proof: wait for `MAP_CAST_STATUS_CODES_TO_CAST_REASON_CODES` to initialize before asserting a mapping. On the Pixel's SDK 22.3.1 runtime, the confirmed mapping is **2155 → `CASTING_ROUTE_CHANGED`**. This code describes a route transition, not a network or receiver diagnosis. If the bundle is not ready during a callback, only that proven 2155 mapping may be used as a fallback; do not guess any other unknown status.
+
+Classify route events by session role. A stale replaced-session event must not tear down its replacement; an attached session must not be reclaimed automatically. Only an explicit pending first-time join may hold pending UI and receive one delayed route-only reconciliation, and only after fresh generation, target identity, default phone route and idle SDK checks pass. Cancel it on newer selection, background, Stop, close or attachment; never retry LOAD/PLAY/seek/volume/source resolution, and never select over another Cast route. A second failure remains explicit and manual.
+
+The original Office route-reversal actor is still unknown. Version 0.3.4 passed 35 Android and 34 shared tests plus the focused on-device mapping check, but no natural recurrence or active-session cold rejoin was available for hardware validation of this build.

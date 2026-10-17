@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moozaq – Nothing playing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#101319}
+</style>
+</helmet>
+<div style="width: 1428px; height: 830px; overflow: hidden; background: #101319">
+  <dc-import name="Main" playback="{{mode}}" hint-size="1428px,830px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"mode":{"editor":"enum","options":["stopped","fresh"],"default":"stopped"},"$preview":{"width":1428,"height":830}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { mode: this.props.mode ?? "stopped" };
+  }
+}
+</script>
+</body>
+</html>

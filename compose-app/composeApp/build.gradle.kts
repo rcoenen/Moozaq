@@ -35,6 +35,9 @@ compose.desktop {
     application {
         mainClass = "com.moozaq.MainKt"
         jvmArgs += "-Dmoozaq.root=${rootProject.projectDir.parentFile.absolutePath}"
+        // AWT otherwise defaults to Aqua even though the Compose content is dark.
+        // Set before AppKit/AWT initializes, for both `run` and packaged launches.
+        jvmArgs += "-Dapple.awt.application.appearance=NSAppearanceNameDarkAqua"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
             packageName = "Moozaq"
@@ -44,3 +47,12 @@ compose.desktop {
     }
 }
 compose.resources { packageOfResClass = "com.moozaq.resources" }
+
+// A separate test-only window: no Python engine, discovery or speaker commands.
+tasks.register<JavaExec>("designPreview") {
+    val compilation = kotlin.targets.getByName("desktop").compilations.getByName("test") as org.jetbrains.kotlin.gradle.plugin.mpp.KotlinJvmCompilation
+    dependsOn("desktopTestClasses")
+    classpath(compilation.output.allOutputs, compilation.runtimeDependencyFiles)
+    mainClass.set("com.moozaq.DesignPreviewKt")
+    systemProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
+}

@@ -252,3 +252,195 @@ Validation: 25 shared desktop tests pass and createDistributable succeeds. New t
 Fixed the idle picker so physical speaker checkboxes choose the playback destination, replacing a selected saved group. The same pending/confirmed destination state is used for both row types. Active/paused/buffering sessions retain physical membership controls, and pending membership operations cannot change checkbox meaning. Added regressions for idle group-to-individual selection, exclusive pending/confirmed checkmarks and preservation of active membership behavior.
 
 All 27 desktop tests and createDistributable pass. Relaunched and verified every available physical speaker checkbox is enabled while All speakers is idle/selected. The owner interacted during verification; the final observed UI shows Fridge checked and Connected/Idle, All speakers unchecked and selectable, with all other individual destinations available. No audio, volume or membership mutation was initiated by the agent.
+
+
+## Design handoff implementation — October 17, 2026
+
+Implemented the supplied design handoff in Compose: shared dark theme and font, compact artwork shelves, 136 dp persistent player, anchored Cast picker with inline volumes, and Channels dialog. Archived the source handoff and integration notes in `docs/design-handoff/`.
+
+Validation: 29 desktop tests and 101 Python bridge tests pass. Android shared-library assembly and Mac distributable build pass. New regressions cover last-participant Stop routing, Stop revision only after successful verification, failed Stop without retry, remembered last-track state and refresh-progress cleanup after a channel failure. No engine playback algorithm was changed beyond exposing verified Stop acknowledgement to the UI.
+
+Visual QA on the actual Mac checked the library layout, idle/connecting player, anchored speaker panel, background blur/scrim and Channels list. An isolated test-only backend also rendered the active player and now-playing card. Native UI inspection initially could not identify the temporary mock bundle until its ad-hoc signing identifier matched its Info.plist; this affected the QA wrapper, not the production app. The Mac locked before Pause/Stop/Add-channel/Escape click-through could be completed. Explicit Escape/focus-return handling compiles but still needs a manual keyboard check. Unit tests validate the transport state transitions, not native keyboard behavior.
+
+No speaker playback was started or resumed, and no speaker volumes or memberships were changed by these checks. The existing app was allowed to rejoin passively; startup still uses current receiver evidence. The interactive fixture is in desktop test sources and has no Cast backend. It must not be used as evidence of audible or long-session reliability.
+
+
+### Handoff continuity repair — October 17
+
+Code inspection identified a second synchronization gate: membership verified and adopted the returned endpoint, but Bridge.snapshot still required a separate OutputMonitor observation, which depended on discovery. A fresh handoff listener now feeds session recovery and UI evidence directly, with session identity, socket, media and membership freshness checks. The UI retains the known track/timeline during uncertainty without enabling stale transport commands. Temporary endpoints are hidden in the picker using protocol metadata.
+
+Validation: 104 Python bridge tests and 32 Kotlin desktop tests pass; Compose Android library and Mac distribution builds pass. New regressions cover pre-discovery handoff evidence, expiration/session changes, temporary group classification, preserved timeline and disabled unconfirmed controls. No real membership changes or audio starts were performed. The Mac app was relaunched passively; final UI inspection was blocked because the UI tool reported a locked Mac.
+
+Android deployment preparation: Pixel 6a was reachable over wireless ADB. The existing android-spike APK builds and passes lint, but is the older Cast experiment, not the Compose product. Installation is awaiting the owner's choice between that prototype and building an installable current Compose Android app. No APK installed in this step.
+
+
+### Current Android interface on Pixel 6a — October 17
+
+Built and installed the current Compose Android companion (`com.moozaq.app`) over the authorized wireless debugging connection. It is separate from `com.moozaq.spike`. The Mac bridge uses an authenticated localhost-only endpoint, reached via ADB reverse, with the same Bridge object as desktop. No public LAN control port was opened.
+
+A device screenshot verified the actual channel-derived mood shelves/artwork, phone-sized player, current mix, advancing elapsed time, three-speaker label, volume and transport controls. Existing playback was read, not restarted. No Play, Pause, Stop, seek, volume or membership commands were sent during deployment. Native standalone Android Cast playback, phone-off duration and live Android control actions remain untested. The Android build currently requires the Mac engine and an active debugging tunnel.
+
+Silent verification: authenticated transport tests cover unauthorized/browser request rejection, private credentials, loopback binding, no startup commands, read-only state and explicit Stop dispatch into a mock. Shared-state regression covers connection loss retaining frozen unconfirmed playback, disabling controls and recovery without media/volume/membership commands.
+
+### Standalone Android build on Pixel (2026-10-17)
+
+Owner rejected the first Mac companion build. Replaced its backend with native Google Cast/MediaRouter plus on-device yt-dlp 0.18.1, including bundled Python/QuickJS. Removed the private phone HTTP server and ADB reverse provisioning. The installer removes the old Moozaq tunnel; the Android app deletes its obsolete private bridge token. Public catalog metadata (1,481 entries; 1,374 at least one hour) ships with the APK and persists/refreshes on the phone.
+
+Silent Pixel 6a checks passed with the Mac reverse tunnel removed:
+
+- Native discovery found All speakers, Bedroom TV, Bedroom, Fridge, Kitchen and Office, plus the existing temporary Fridge + 2 group. No route was selected by the checks.
+- Passive local receiver metadata classified Fridge + 2 as temporary and kept All speakers visible. This does not prove member audibility.
+- The phone resolved starter `7vy0H3ERRiA` to an audio-only HTTPS MP4 stream, with its title and duration. A bounded HTTP range fetch returned media bytes directly to the phone. No cookies or Premium credentials were supplied. No signed URLs were printed or saved.
+- The catalog loaded locally, without an RPC endpoint. Native source extraction ran on the Pixel, not on Mac.
+
+Validation: Android assemble and lint pass; 4 Android unit checks cover Stop/late preparation, destination invalidation and content-bound Mac/Android identity; 33 shared desktop tests and 104 Python bridge tests pass. Two Android instrumentation checks cover discovery/topology and source resolution/media fetch.
+
+Not tested in this build: audible Android-initiated playback, all-source coverage, native Android live group mutation, phone disconnection during playback, full-session reliability, or a complete channel refresh on Android. No audio was started/resumed for validation. These remain separate hardware acceptance checks. The native adapter never reloads on reconnect or restores cached volume/seek position, and uses the same content-hash-bound `moozaq` source tag as desktop for rejoining identification.
+
+Final installation succeeded as `com.moozaq.app` version `0.3-standalone`; the process is running and the ADB reverse list is empty. Final launch produced no AndroidRuntime crash. The phone was dozing during the final screenshot, so that capture could not verify the visible standalone UI; the earlier compact-layout screenshot was from the companion build. Keep those visual checks distinct.
+
+### Android Bedroom playback investigation — 2026-10-17
+
+Owner-reproduced failure on the standalone Android app, source `Xdho5SVxEVI`:
+Bedroom selection attached a connected Cast session. On explicit Play, on-device
+resolution returned `audio/mp4` after about five seconds. LOAD was issued, but the
+receiver stayed idle and then lost its media status; no PLAYING confirmation
+arrived before the 20-second timeout. The owner heard no music. This does not
+establish the receiver's underlying rejection reason.
+
+A silent instrumented check on the Pixel resolved the same source with default
+network settings and with `--force-ipv4`. Both URLs were IPv4-bound, and both
+returned HTTP 206 with readable audio bytes on the phone. The suspected IPv6
+binding mismatch was not reproduced; no production IPv4 change was made.
+Successful phone fetching does not demonstrate Nest access or decoding.
+
+Fixed Android command deadlines being treated as ordinary coroutine cancellation,
+which hid the timeout error. Deadlines now surface explicit failures while Stop
+and caller cancellation remain cancellation. Added private, bounded, URL-redacted
+Cast diagnostics including LOAD acknowledgement, player state and idle reason.
+No automatic retry, audio start or receiver-volume change was introduced.
+
+Validation: updated APK assemble and lint passed; all seven Android unit tests
+passed, including timeout-versus-cancellation regressions. The one silent network
+binding diagnostic passed on the Pixel. Reinstalled and opened the standalone
+app after the owner deleted both apps. No playback command was sent by the agent;
+receiver-side failure diagnosis awaits another explicit owner playback attempt.
+
+### Android direct-stream compatibility fix (2026-10-17)
+
+Owner retried Bedroom and two mixes. First selection failed inside the SDK
+(session ended code 2155); second selection connected. Both explicit LOADs were
+acknowledged, entered LOADING, then reached IDLE with reason 4 (ERROR) within
+about 120 ms. The SDK’s next empty media status erased the transient error,
+leaving the app waiting for its full 20-second confirmation deadline. The
+connection failure code’s underlying cause is not established.
+
+Silent source comparison for `Xdho5SVxEVI` found a reproducible HTTP difference:
+
+| Resolver/source | Ranged request | Ordinary GET | Format |
+|---|---|---|---|
+| Android library’s bundled yt-dlp 2025.11.12 / ANDROID client | 206, audio bytes | 403 Forbidden | 140 / AAC / MP4 |
+| Mac yt-dlp 2026.08.19 / VISIONOS client | 206, audio bytes | 200, audio bytes | 140 / AAC / MP4 |
+| Updated Android yt-dlp 2026.08.19 / VISIONOS client | 206, audio bytes | 200, audio bytes | 140 / AAC / MP4 |
+
+The phone was on Wi-Fi without VPN, and the signed-address hashes matched Mac.
+Tests read at most a few bytes and never played audio. A range-only smoke test
+was insufficient: it missed a source which rejected ordinary fetching. This
+explains a concrete source incompatibility; the receiver’s internal HTTP request
+was not captured, so the causal link to its generic ERROR remains to be verified
+with an authorized playback attempt.
+
+The APK now ships the official 2026.08.19 Python zipapp, verified against its
+release SHA-256 (recorded in Android assets/licenses/NOTICE.txt). Initialization
+atomically migrates the old private runtime before invoking it. No executable
+updates, credentials or Mac services are fetched at app startup. Direct playback
+performs an ordinary bounded GET before LOAD and still checks cancellation and
+receiver identity afterwards. A failed preflight leaves existing playback alone.
+
+Additional fixes: latch a receiver ERROR after observing the requested LOAD so
+subsequent empty status cannot hide it; retain discovered speaker rows as
+unavailable across gaps; keep the picker height fixed; surface explicit
+connection failures immediately so destination retry is available. A successful
+LOAD acknowledgement is still not PLAYING confirmation.
+
+Validation: assemble/lint passed; 13 Android unit tests and 34 shared desktop
+tests passed. Two silent Pixel checks passed, covering the failing mix with
+range and ordinary Cast-style requests, and the starter mix with production
+ordinary-GET preflight. Installed version 0.3.1-standalone (code 3) and reopened
+it. Visually checked the browser and six-row speaker picker; no route was
+selected and no audio was started. Audible Nest playback after this update,
+repeatable first-connect behavior and long-form reliability remain unverified.
+
+
+### Android playback confirmed; cold-start rejoin (2026-10-17)
+
+The owner confirmed that standalone 0.3.1 now plays a mix on Bedroom, and that it continues after closing the Android app. The phone log independently shows source `Xdho5SVxEVI` reaching PLAYING at 15:34:16 UTC after the new ordinary-GET preflight. This validates that short playback attempt, not all sources, groups or three-hour reliability.
+
+The remaining bug was reproducible: reopen at 15:34:45 UTC started native session restoration, which failed with 2152 ten seconds later. Moozaq had no persistent destination and stayed disconnected/empty while Bedroom continued.
+
+Android 0.3.2 (versionCode 4) adds persisted device identity, bounded guarded rejoining and a Checking playback state. It retains native SDK restoration, then verifies the existing Default Media Receiver with a passive LAN status probe before selecting that same discovered device with relaunch disabled. Fresh remote media customData restores the catalog source, artwork and current playback position; no remembered volume or position is applied. A different receiver app is left alone. See google-cast-lessons.md for the non-atomic probe/selection limitation.
+
+Validation:
+- APK build and Android lint passed; 20 Android unit tests and 34 shared desktop tests passed. New tests cover recovery backoff, superseded recovery probes, unavailable remembered devices, passive receiver eligibility, and malformed Cast frames.
+- Installed 0.3.2 on the Pixel. An explicit existing-session instrumentation test verified Bedroom already had the Default Media Receiver, joined its remote without a LOAD, and read PLAYING for “Dark Jazz & Cinematic Trip-Hop // Midnight Fever Motel // Dawn Is Still Hours Away”, source recognized, at 1,852 seconds. The test is opt-in and skipped in normal suites.
+- Force-stopped the phone process and reopened the activity. Native resume again failed with 2152; the fallback joined the already-running receiver in about 11 seconds total. At 15:43:47 UTC it reported PLAYING at 1,884 seconds with the same application-session fingerprint as before closing. No LOAD, Play/resume, seek, volume, or source resolution occurred during recovery.
+- Phone screenshot verified artwork, the highlighted matching catalog card, Playing, Pause, Bedroom speaker, and advancing progress (32:01 of 1:32:47). This is visual/protocol evidence; the owner supplied the audible confirmation of the preceding playback.
+
+This does not yet prove phone reboot, Wi-Fi loss, native dynamic-group reattachment or long-session reliability. The native initial restore timeout still adds roughly ten seconds before fallback recovery.
+
+A second cold restart of the normal installed activity also recovered automatically: 15:45:27 → 15:45:38 UTC, same application-session fingerprint and source, PLAYING at 1,996 seconds. No playback commands were issued. The app was left open and synchronized to Bedroom.
+
+### Android 0.3.3 recovery guard; acceptance pending (2026-10-17)
+
+Source review found that the pre-probe recovery guard yielded to a resuming SDK session but the post-probe guard omitted that state. The candidate now uses one immutable session-activity predicate at both decision points and reads the current SDK session again after the passive probe. Two focused JVM cases cover the active-state matrix and a session that starts resuming during the probe.
+
+Silent validation passed: Android assemble, androidTest assemble and lint, plus 30 Android unit tests and 34 shared desktop tests with no failures/errors/skips. The phone still had verified 0.3.2 code 4 before deployment; reinstall preserved app data and `dumpsys` then verified 0.3.3 code 5.
+
+A cold reopen at 16:59:34 UTC remained foreground and performed only passive recovery. Bedroom reported no active compatible Moozaq receiver at 16:59:36; an earlier passive check at 16:58:54 had the same result. The screenshot showed Checking playback with the no-active-receiver explanation. The earlier playing session was therefore unavailable for source/session continuity testing. No LOAD, Play/resume, seek, volume or source-resolution event occurred, and no audio was started to establish the missing precondition.
+
+Two cold rejoin measurements and the warm return remain unperformed. This run establishes deployment and idle/no-active-receiver behavior only, not faster recovery, existing-session continuity, audible output or long-session reliability. Evidence captures are under ignored `compose-app/androidApp/build/validation/`.
+
+### Android 0.3.3 faster rejoin validated on Office (2026-10-17)
+
+After the Bedroom session was unavailable, the owner explicitly authorized starting Midnight Fever Motel on Office. The first read-only Office destination selection failed with SDK error 2155; a deliberate selection retry connected to an idle receiver without media commands. This adds one observed 2155 occurrence but does not establish its cause.
+
+Explicit Play resolved and preflighted source `Xdho5SVxEVI`, LOAD was acknowledged, and fresh receiver state confirmed PLAYING at 17:18:16 UTC. The owner then audibly confirmed jazz playing on Office. The application-session fingerprint was `5b3da0b68d62`.
+
+Recovery validation against that existing session:
+
+- Cold reopen 1: backend created at 17:19:12.385, first fresh connected PLAYING snapshot at 17:19:14.985 (**2.600 seconds**), source unchanged, position 56 seconds, same application-session fingerprint.
+- Cold reopen 2: backend created at 17:19:53.771, first fresh connected PLAYING snapshot at 17:19:55.655 (**1.884 seconds**), source unchanged, position 97 seconds, same application-session fingerprint.
+- Warm background/foreground: foreground at 17:20:35.582, fresh playing media callback at 17:20:35.672 (**0.090 seconds**), with no route reselection.
+- Screenshots after all three runs showed the matching artwork, Now playing/Playing, Pause, Office speaker and advancing timeline. A machine check of each recovery log slice found zero LOAD, Play/resume, seek, volume, source-resolution or play-confirmation events.
+
+The 0.3.2 baseline took about 11 seconds on its two cold reopens, so the disabled saved-session restoration and 500 ms grace are retained for this validated path. This establishes one explicitly authorized Office source/session, two cold starts and one warm return. It does not establish audible continuity after each reopen, phone reboot, Wi-Fi loss, other speakers/groups/sources, or three-hour reliability. Evidence is under ignored `compose-app/androidApp/build/validation/office-*`.
+
+### Android 0.3.4 route-change diagnosis and hardening (2026-10-17)
+
+The older Bedroom 2155 sequence occurred during an intended Bedroom TV to Bedroom speaker route switch and attached successfully. The Office 2155 sequence instead returned to the phone route without attaching; a later manual selection succeeded. The exact Office route-change actor is not established and current system logs do not identify it.
+
+An on-device `CastReasonTest` initially returned zero for all codes because `CastContext` loads `MAP_CAST_STATUS_CODES_TO_CAST_REASON_CODES` asynchronously after construction. Waiting for that bundle produced the authoritative mapping: **2155 → `CASTING_ROUTE_CHANGED`**, with 2152 → `SESSION_RESUME_FAILED`. The final bounded instrumentation test asserts the mapping and passes without selecting routes or sending media commands.
+
+Version 0.3.4 / code 6 now logs mapped reasons and session/route context. For a pending first-time destination join, it holds pending UI through a one-second settling delay and allows one route-only reconciliation only with fresh generation, target identity, default phone route and idle SDK guards. It cancels on new selection, background, Stop, close or newer attachment, never automatically retries attached sessions or another Cast route, and surfaces manual retry after a second failure. If the reason bundle is not ready during a callback, only the already-proven 2155 mapping is used as a fallback; other unknown statuses remain unchanged.
+
+Validation: Android assemble, androidTest assemble and lint passed; **35 Android unit tests and 34 shared desktop tests** passed with no failures/errors/skips. `dumpsys` verified code 6 / 0.3.4, and the focused on-device reason-mapping test passed. A cold reopen at 18:07:45 UTC found no active compatible Office receiver, so no existing-session continuity result was available for this build. No new audio or forced 2155 reproduction was attempted. Deterministic tests cover the retry guards, but real-world effectiveness against the original transient Office route reversal remains unproven. Evidence is under ignored `compose-app/androidApp/build/validation/034-*`.
+
+### Android 0.3.5 plain-language idle panel (2026-10-17)
+
+The owner rejected the debug-like Android playback status. The mobile player had been replacing the title with “Checking playback…” for any recovery message and then repeating raw receiver detail underneath. Android 0.3.5 / code 7 changes confirmed no-active-receiver recovery to a settled IDLE state, removes the raw “No active Moozaq receiver” presentation, and uses “Connecting…” only for actual connection work. The title now follows the Mac model: “Nothing playing” when settled idle, with “Last played: …” when a previous in-memory track exists and “Choose a mix” otherwise.
+
+Validation: Android assemble, androidTest assemble and lint passed; **35 Android unit tests and 35 shared desktop tests** passed with no failures/errors/skips. `dumpsys` verified code 7 / 0.3.5. A fresh phone screenshot at 18:22 UTC shows “Nothing playing” and “Choose a mix” with no checking/receiver debug text. The shared presentation test separately verifies the “Last played: Our mix” label. No playback was started for this UI validation. Evidence: ignored `compose-app/androidApp/build/validation/035-idle.png`.
+
+### Android 0.3.6 connect-and-play (2026-10-17)
+
+The owner reported that mix Play clicks did nothing while Office was selected but disconnected. No `play.request` appeared in diagnostics: the shared store rejected the click because `canStart` required an already synchronized receiver. Android 0.3.6 / code 8 now allows an explicit Play request with a selected destination, shows Starting immediately, connects if needed, waits up to 15 seconds for fresh readiness and then starts once. Stop or a newer destination invalidates the wait; timeout/connection failure is explicit and never causes a late automatic retry.
+
+Silent store tests cover connect-then-play, Stop-before-ready preventing a late Play, and visible selection failure. Full validation passed with **35 Android unit tests and 38 shared desktop tests**, Android assemble, androidTest assemble and lint. `dumpsys` verified code 8 / 0.3.6.
+
+With explicit owner authorization, the real Midnight Fever Motel button was used. Logs show one Office destination request, one `play.request` for `Xdho5SVxEVI`, one preflight and one LOAD, followed by receiver-confirmed PLAYING at 18:41:49 UTC. The UI showed the matching artwork, Now playing/Playing, Pause and Office connected. This verifies the actual connect-and-play path on Office, not all sources or long-session reliability. Evidence: ignored `compose-app/androidApp/build/validation/036-*`.
+
+### Android 0.3.7 pending-mix presentation (2026-10-17)
+
+The owner identified a second presentation contradiction: after starting another mix, the bottom panel showed the old track's title, artwork and timeline beside Starting. Android 0.3.7 / code 9 now uses the pending transport's requested source for the title/artwork and hides the old timeline until receiver confirmation. Desktop and mobile share the same requested-mix behavior.
+
+Validation: Android assemble, androidTest assemble and lint passed; **35 Android unit tests and 39 shared desktop tests** passed with no failures/errors/skips. `dumpsys` verified code 9 / 0.3.7. With explicit owner authorization, Office switched from Just Being Myself to Nothing More Needed. The pending screenshot shows Nothing More Needed's title/artwork with Starting and no old timeline. Logs show one `play.request` for `GzUPBC6j3ms`, one preflight and one LOAD, with receiver-confirmed PLAYING at 18:59:23 UTC. The final screenshot shows the same requested track Playing. Evidence: ignored `compose-app/androidApp/build/validation/037-pending.png` and `037-final.png`.

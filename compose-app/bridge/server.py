@@ -62,7 +62,7 @@ class Bridge:
         receiver['volume_revision'] = self.volume_revision
         receiver['seek_revision'] = self.seek_revision
         receiver['transport_revision'] = self.transport_revision
-        observed = next((r for r in self.outputs.recovery_rows() if r['id'] == self.target), None)
+        observed = next((r for r in self.recovery_rows() if r['id'] == self.target), None)
         synchronized = bool(observed and observed['fresh'] and observed['state'] != 'UNKNOWN'
                             and self.lab.selected_id == self.target)
         if synchronized and status.get('connected'):
@@ -77,11 +77,22 @@ class Bridge:
         if self.target and not synchronized and not recovering:
             receiver.update(connected=False, state='UNKNOWN', recovery='Waiting for speaker…')
         infos = {str(info.uuid): info for info in discovered_cast_infos(self.lab.browser)}
-        return {**self.catalog.status(), 'devices': self.inventory.snapshot(infos.values()),
+        devices = self.inventory.snapshot(infos.values())
+        temporary = self.membership.temporary_ids | self.outputs.temporary_ids()
+        for device in devices:
+            device['temporary'] = device['id'] in temporary
+        return {**self.catalog.status(), 'devices': devices,
                 'receiver': receiver, 'target': self.target, 'busy': self.busy,
                 'connecting': self.connecting or bool(status.get('reconnecting')) or recovering or bool(self.target and not synchronized), 'message': self.message,
                 'group': self.group_monitor.snapshot() if self.group_monitor else None,
                 'membership': self.membership.snapshot(), 'outputs': self.outputs.snapshot()}
+
+    def recovery_rows(self):
+        rows = self.outputs.recovery_rows()
+        confirmed = self.membership.confirmed_receiver()
+        if confirmed:
+            rows = [confirmed] + [r for r in rows if r['id'] != confirmed['id']]
+        return rows
 
     def start(self, label, action, connecting=False):
         with self.lock:
@@ -145,7 +156,7 @@ class Bridge:
             if not self.session_recovery.last:
                 self.group_follower.step(status)
             infos = {str(i.uuid): i for i in discovered_cast_infos(self.lab.browser)}
-            replacement = self.session_recovery.step(self.target, self.outputs.recovery_rows(), time.monotonic())
+            replacement = self.session_recovery.step(self.target, self.recovery_rows(), time.monotonic())
             if not replacement and not self.session_recovery.last:
                 replacement = self.remote_preferences.replacement(
                     self.target, infos, bool(status.get('connected')), self.busy, time.monotonic())
@@ -272,6 +283,7 @@ class Bridge:
                     self.membership.wait_for_stop()
                     self.lab.stop_verified()
                     with self.lock:
+                        self.transport_revision += 1
                         self.session_recovery.clear()
                     self.message = 'Stopped: receiver confirmed playback ended.'
                 except Exception as exc:

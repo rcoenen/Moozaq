@@ -68,7 +68,7 @@ Use tests appropriate to the change. Mock race conditions, timeouts, stale state
 
 ## Current evidence
 
-A short direct-URL test of the first mix played audibly on Bedroom speaker without Premium, cookies or a Mac media relay. Mac relay playback and seeking were observed in receiver state. Complete cache playback, all-six-source coverage, three-hour reliability and Android rejoining are not yet established. A stop/readiness failure prompted regression coverage and a receiver-shutdown fallback. Consult `docs/spike-results.md` for details rather than treating this summary as a permanent guarantee.
+A short direct-URL test of the first mix played audibly on Bedroom speaker without Premium, cookies or a Mac media relay. Mac relay playback and seeking were observed in receiver state. Android 0.3.3 also completed two cold-process reopens and one warm return on one explicitly authorized Office session with unchanged receiver source/session identity; this is limited rejoin evidence, not broad reliability. Complete cache playback, all-six-source coverage, three-hour reliability, phone reboot and actual Wi-Fi loss/rejoin are not established. A stop/readiness failure prompted regression coverage and a receiver-shutdown fallback. Consult `docs/spike-results.md` for details rather than treating this summary as a permanent guarantee.
 
 
 ### Group playback follow-up (October 16, 2026)

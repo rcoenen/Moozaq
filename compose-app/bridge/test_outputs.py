@@ -12,6 +12,18 @@ def row(uid, state='UNKNOWN', members=None, connected=True):
 
 
 class OutputTests(unittest.TestCase):
+    def test_temporary_classification_uses_receiver_topology_not_group_name(self):
+        uid='302fdeb3-90ee-46ca-a23b-9c1ee486485e'
+        monitor=OutputMonitor(Mock())
+        info=SimpleNamespace(uuid='physical',cast_type='audio',services=set())
+        data={'multizone':{'dynamic_groups':[{'uuid':uid.replace('-','')}],
+                           'groups':[{'uuid':'saved-group'}]}}
+        with patch('outputs.dial._get_status',return_value=(None,data)) as query:
+            monitor.read_dynamic_groups(info)
+            monitor.read_dynamic_groups(info)
+            query.assert_called_once()
+        self.assertEqual(monitor.temporary_ids(),{uid})
+
     def test_terminated_monitor_connection_is_replaced_passively(self):
         lab = Mock()
         monitor = OutputMonitor(lab)

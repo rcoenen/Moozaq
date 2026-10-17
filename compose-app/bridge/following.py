@@ -32,9 +32,11 @@ def matches_session(previous, media, members, origin, elapsed):
 class EvidenceListener:
     def __init__(self):
         self.media = threading.Event()
+        self.media_at = 0
         self.members = threading.Event()
 
     def new_media_status(self, status):
+        self.media_at = time.monotonic()
         self.media.set()
 
     def load_media_failed(self, queue_item_id, error_code):

@@ -12,7 +12,8 @@ class PythonBackend(root: File) : PlayerBackend {
     private val counter = AtomicLong()
     private val process = ProcessBuilder(
         File(root, "mac-spike/.venv/bin/python").absolutePath, "-u", File(root, "compose-app/bridge/server.py").absolutePath
-    ).directory(root).redirectError(ProcessBuilder.Redirect.appendTo(File(root, "mac-spike/data/compose-engine.log"))).start()
+    ).directory(root).redirectError(ProcessBuilder.Redirect.appendTo(File(root, "mac-spike/data/compose-engine.log")))
+        .start()
     private val writer = process.outputStream.bufferedWriter()
     init {
         Thread({

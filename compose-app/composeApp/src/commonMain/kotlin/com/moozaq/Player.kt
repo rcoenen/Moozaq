@@ -6,7 +6,7 @@ import kotlin.time.TimeMark
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
-@Serializable data class Device(val id: String, val name: String, val model: String = "", val cast_type: String = "", val available: Boolean = true)
+@Serializable data class Device(val id: String, val name: String, val model: String = "", val cast_type: String = "", val available: Boolean = true, val temporary: Boolean = false)
 @Serializable data class OutputState(val id: String, val connected: Boolean = false, val state: String = "UNKNOWN", val title: String? = null, val volume: Double? = null, val muted: Boolean = false, val volume_revision: Long = 0, val control_id: String? = null, val session_id: String? = null)
 @Serializable data class GroupMember(val id: String, val name: String, val connected: Boolean = false, val state: String = "UNKNOWN", val muted: Boolean = false, val volume: Double? = null, val volume_revision: Long = 0)
 @Serializable data class GroupInfo(val leader: String = "Unknown", val members: List<GroupMember> = emptyList(), val status: String = "Membership unverified")
@@ -19,9 +19,10 @@ import kotlinx.coroutines.flow.*
 @Serializable data class Snapshot(
     val devices: List<Device> = emptyList(), val receiver: Receiver = Receiver(),
     val target: String? = null, val busy: Boolean = false, val connecting: Boolean = false,
-    val catalog_revision: Int = 0, val importing: Boolean = false, val catalog_message: String = "",
+    val catalog_revision: Int = 0, val importing: Boolean = false, val refreshing_channels: List<String> = emptyList(), val catalog_message: String = "",
     val message: String = "Starting local engine…", val group: GroupInfo? = null,
-    val membership: PlaybackMembership = PlaybackMembership(), val outputs: List<OutputState> = emptyList()
+    val membership: PlaybackMembership = PlaybackMembership(), val outputs: List<OutputState> = emptyList(),
+    val connection_error: String? = null
 )
 interface PlayerBackend {
     suspend fun snapshot(): Snapshot
@@ -68,15 +69,16 @@ fun reconcileTransport(request: PendingTransport?, snapshot: Snapshot): PendingT
     request ?: return null
     return when {
         snapshot.receiver.transport_revision > request.revision -> null
-        !snapshot.busy && request.started.elapsedNow().inWholeSeconds >= 1 -> request.copy(failed=true)
+        !snapshot.busy && !snapshot.connecting && request.started.elapsedNow().inWholeSeconds >= 1 -> request.copy(failed=true)
         else -> request
     }
 }
-data class PlayerUiState(val library: CatalogData = CatalogData(), val snapshot: Snapshot = Snapshot(), val previewId: String? = null, val error: String? = null, val pendingVolumes: Map<String, PendingVolume> = emptyMap(), val mainVolume: PendingVolume? = null, val pendingSeek: PendingSeek? = null, val transport: PendingTransport? = null, val membership: PendingMembership? = null, val outputVolumes: Map<String, PendingVolume> = emptyMap(), val destination: PendingDestination? = null)
+data class PlayerUiState(val library: CatalogData = CatalogData(), val snapshot: Snapshot = Snapshot(), val previewId: String? = null, val error: String? = null, val pendingVolumes: Map<String, PendingVolume> = emptyMap(), val mainVolume: PendingVolume? = null, val pendingSeek: PendingSeek? = null, val transport: PendingTransport? = null, val membership: PendingMembership? = null, val outputVolumes: Map<String, PendingVolume> = emptyMap(), val destination: PendingDestination? = null, val lastPlayed: Receiver? = null)
 fun canResume(s: Snapshot) = s.receiver.connected && !s.connecting && !s.busy && s.receiver.state == "PAUSED"
 fun playbackLabel(s: Snapshot) = s.receiver.recovery ?: if(s.connecting) "Synchronizing…" else s.receiver.state?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Choose a mix to begin"
 fun canPause(s: Snapshot) = s.receiver.connected && !s.connecting && !s.busy && s.receiver.state == "PLAYING"
 fun canStart(s: Snapshot, mix: Mix) = s.receiver.connected && !s.connecting && !s.busy && !(s.receiver.source == mix.url && s.receiver.state in listOf("PLAYING", "BUFFERING"))
+fun canRequestPlay(s: Snapshot, mix: Mix) = !s.busy && s.target != null && !(s.receiver.source == mix.url && s.receiver.state in listOf("PLAYING", "BUFFERING"))
 fun clockTime(seconds: Double?): String {
     if (seconds == null || !seconds.isFinite()) return "—"
     val n = seconds.toInt().coerceAtLeast(0)
@@ -88,10 +90,11 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
     private val mutable = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = mutable.asStateFlow()
     private var catalogRevision = -1
+    private var pollError: String? = null
     fun start() = scope.launch {
         while (isActive) {
-            try { val s = backend.snapshot(); if(s.catalog_revision != catalogRevision) { val library = backend.catalog(); mutable.update { it.copy(library=library) }; catalogRevision=s.catalog_revision }; mutable.update { it.copy(snapshot = s, destination = reconcileDestination(it.destination, s), membership = reconcileMembership(it.membership, s), outputVolumes = reconcileOutputVolumes(it.outputVolumes, s), transport = if(it.snapshot.target == s.target) reconcileTransport(it.transport, s) else null, pendingSeek = if(it.snapshot.target == s.target) reconcileSeek(it.pendingSeek, s) else null, mainVolume = if(it.snapshot.target == s.target) reconcileMainVolume(it.mainVolume, s) else null, pendingVolumes = if(it.snapshot.target == s.target) reconcileVolumes(it.pendingVolumes, s) else emptyMap()) } }
-            catch (e: Exception) { if (e is CancellationException) throw e; mutable.update { it.copy(snapshot = it.snapshot.copy(receiver = Receiver(), connecting = false), error = e.message) } }
+            try { val s = backend.snapshot(); if(s.catalog_revision != catalogRevision) { val library = backend.catalog(); mutable.update { it.copy(library=library) }; catalogRevision=s.catalog_revision }; mutable.update { it.copy(error=if(it.error==pollError) null else it.error, snapshot = s, lastPlayed = rememberPlayback(it.lastPlayed, s.receiver), destination = reconcileDestination(it.destination, s), membership = reconcileMembership(it.membership, s), outputVolumes = reconcileOutputVolumes(it.outputVolumes, s), transport = if(it.snapshot.target == s.target) reconcileTransport(it.transport, s) else null, pendingSeek = if(it.snapshot.target == s.target) reconcileSeek(it.pendingSeek, s) else null, mainVolume = if(it.snapshot.target == s.target) reconcileMainVolume(it.mainVolume, s) else null, pendingVolumes = if(it.snapshot.target == s.target) reconcileVolumes(it.pendingVolumes, s) else emptyMap()) } }
+            catch (e: Exception) { if (e is CancellationException) throw e; pollError=e.message; mutable.update { it.copy(snapshot = it.snapshot.copy(receiver = it.snapshot.receiver.copy(connected=false,state="UNKNOWN",recovery="Remote connection unavailable"), connecting = false), error = e.message) } }
             delay(700)
         }
     }
@@ -105,6 +108,7 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
         val ui = state.value
         if (!canToggleMembership(ui, device)) return
         val current = requestedMembers(ui)
+        if (device.id in current && current.size == 1) { command("stop"); return }
         val requested = if (device.id in current) current - device.id else current + device.id
         val token = ui.snapshot.membership.token ?: return
         mutable.update { it.copy(membership=PendingMembership(requested, ui.snapshot.membership.revision)) }
@@ -153,20 +157,54 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
     }
     fun dismissMainVolume() { mutable.update { it.copy(mainVolume=null) } }
     fun dismissVolume(id: String) { mutable.update { it.copy(pendingVolumes = it.pendingVolumes - id) } }
+    private var playGeneration=0L
     fun preview(id: String) { mutable.update { it.copy(previewId = id) } }
     fun selectDevice(id: String) {
         if (state.value.snapshot.busy || state.value.destination?.let { !it.failed } == true) return
+        playGeneration++
         mutable.update { it.copy(destination=PendingDestination(id)) }
         action { backend.selectDevice(id) }
     }
     fun play(mix: Mix) {
-        if (state.value.destination == null && canStart(state.value.snapshot, mix)) {
-            mutable.update { it.copy(transport=PendingTransport("PLAYING",it.snapshot.receiver.state,it.snapshot.receiver.transport_revision,mix.url)) }
-            action { backend.play(mix.url) }
+        val ui=state.value
+        if(ui.destination!=null) return
+        if(ui.snapshot.target==null) {
+            mutable.update {it.copy(error="Choose a speaker first")};return
+        }
+        if(!canRequestPlay(ui.snapshot,mix)) return
+        val generation=++playGeneration
+        val target=ui.snapshot.target!!
+        val ready=canStart(ui.snapshot,mix)
+        mutable.update { it.copy(transport=PendingTransport("PLAYING",it.snapshot.receiver.state,it.snapshot.receiver.transport_revision,mix.url)) }
+        action {
+            if(!ready && !ui.snapshot.receiver.connected && !ui.snapshot.connecting) backend.selectDevice(target)
+            if(!ready && !preparePlay(mix,target,generation)) return@action
+            backend.play(mix.url)
         }
     }
+    private suspend fun preparePlay(mix:Mix,target:String,generation:Long):Boolean {
+        val result=withTimeoutOrNull(15000) {
+            var ready=false
+            while(!ready) {
+                if(generation!=playGeneration) return@withTimeoutOrNull false
+                val current=backend.snapshot()
+                if(current.target!=target) return@withTimeoutOrNull false
+                if(canStart(current,mix)) ready=true
+                else {
+                    current.connection_error?.let {error(it)}
+                    delay(100)
+                }
+            }
+            ready
+        }
+        if(result==null) error("Speaker was not ready in time. Play was not started.")
+        return result
+    }
     fun command(name: String, value: Double? = null) {
-        if(name == "stop") mutable.update { it.copy(transport=null, membership=null) }
+        if(name == "stop") {
+            playGeneration++
+            mutable.update { it.copy(transport=PendingTransport("IDLE",it.snapshot.receiver.state,it.snapshot.receiver.transport_revision), membership=null, destination=null) }
+        }
         if(name == "pause" || name == "resume") {
             mutable.update { it.copy(transport=PendingTransport(if(name == "pause") "PAUSED" else "PLAYING",it.snapshot.receiver.state,it.snapshot.receiver.transport_revision)) }
         }
@@ -175,8 +213,26 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
     private fun action(block: suspend () -> Unit) {
         mutable.update { it.copy(error = null, snapshot = it.snapshot.copy(busy = true)) }
         scope.launch {
-            try { block(); val s = backend.snapshot(); mutable.update { it.copy(snapshot = s, destination = reconcileDestination(it.destination, s), membership = reconcileMembership(it.membership, s), outputVolumes = reconcileOutputVolumes(it.outputVolumes, s), transport = if(it.snapshot.target == s.target) reconcileTransport(it.transport, s) else null, pendingSeek = if(it.snapshot.target == s.target) reconcileSeek(it.pendingSeek, s) else null, mainVolume = if(it.snapshot.target == s.target) reconcileMainVolume(it.mainVolume, s) else null, pendingVolumes = if(it.snapshot.target == s.target) reconcileVolumes(it.pendingVolumes, s) else emptyMap()) } }
+            try { block(); val s = backend.snapshot(); mutable.update { it.copy(snapshot = s, lastPlayed = rememberPlayback(it.lastPlayed, s.receiver), destination = reconcileDestination(it.destination, s), membership = reconcileMembership(it.membership, s), outputVolumes = reconcileOutputVolumes(it.outputVolumes, s), transport = if(it.snapshot.target == s.target) reconcileTransport(it.transport, s) else null, pendingSeek = if(it.snapshot.target == s.target) reconcileSeek(it.pendingSeek, s) else null, mainVolume = if(it.snapshot.target == s.target) reconcileMainVolume(it.mainVolume, s) else null, pendingVolumes = if(it.snapshot.target == s.target) reconcileVolumes(it.pendingVolumes, s) else emptyMap()) } }
             catch (e: Exception) { if (e is CancellationException) throw e; mutable.update { it.copy(error = e.message, destination=it.destination?.copy(failed=true), snapshot = it.snapshot.copy(busy = false)) } }
         }
     }
 }
+
+fun rememberPlayback(previous: Receiver?, receiver: Receiver): Receiver? =
+    if(receiver.connected && receiver.state in listOf("PLAYING","PAUSED","BUFFERING") && !receiver.title.isNullOrBlank()) receiver else previous
+
+/** Retain presentation during a remote handoff without enabling stale controls. */
+fun presentedReceiver(ui: PlayerUiState): Receiver {
+    val r=ui.snapshot.receiver
+    val recovering=ui.snapshot.connecting || r.recovery!=null || membershipPending(ui)
+    val previous=ui.lastPlayed
+    return if(recovering && ui.destination==null && previous!=null && !r.connected)
+        r.copy(title=r.title?:previous.title,source=r.source?:previous.source,
+            position=r.position?:previous.position,duration=r.duration?:previous.duration,
+            volume=r.volume?:previous.volume,recovery=r.recovery?:"Connecting…")
+    else r
+}
+
+fun pickerDevices(s: Snapshot): List<Device> = s.devices.filterNot {it.temporary} +
+    s.group?.members.orEmpty().filter {m->s.devices.none {it.id==m.id}}.map {Device(it.id,it.name,cast_type="audio")}

@@ -50,3 +50,21 @@ class CatalogTests(unittest.TestCase):
         for url in ['http://www.youtube.com/@example','https://evil.test/@example','https://www.youtube.com/watch?v=12345678901','https://www.youtube.com/@example/videos']:
             with self.assertRaises(ValueError):channel_url(url)
         self.assertEqual(channel_url(self.url+'/'),self.url)
+
+    def test_refresh_progress_tracks_remaining_channels_and_clears_after_failure(self):
+        other='https://www.youtube.com/@second'
+        self.catalog.data['channels'].append({'url':other,'name':'Second'})
+        progress=[]
+        def import_one(url):
+            progress.append(self.catalog.status()['refreshing_channels'])
+            if url==self.url:
+                raise RuntimeError('Metadata unavailable')
+        with patch('catalog.threading.Thread') as thread, patch.object(self.catalog,'import_channel',side_effect=import_one):
+            self.catalog.refresh()
+            self.assertEqual(self.catalog.status()['refreshing_channels'],[self.url,other])
+            self.assertTrue(self.catalog.status()['importing'])
+            thread.call_args.kwargs['target']()
+        self.assertEqual(progress,[[self.url,other],[other]])
+        self.assertEqual(self.catalog.status()['refreshing_channels'],[])
+        self.assertFalse(self.catalog.status()['importing'])
+        self.assertIsNotNone(self.catalog.snapshot()['channels'][0]['error'])

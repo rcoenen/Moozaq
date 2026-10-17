@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moozaq – Your channels</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#10131A}
+a{color:#FFB872}a:hover{color:#FFDCBE}
+.mz-root{font-family:"Roboto Flex",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.mz-text-btn{cursor:pointer}
+.mz-text-btn:hover:not(:disabled){background:rgba(255,184,114,.08)}
+.mz-text-btn:disabled{cursor:default}
+.mz-field:focus-within{border-color:#FFB872 !important}
+.mz-field input{all:unset;width:100%;font-size:15px;line-height:22px;letter-spacing:.25px;color:#E0E2EC}
+.mz-field input::placeholder{color:#8991A2;opacity:1}
+.mz-list{scrollbar-width:thin;scrollbar-color:#3F4756 transparent}
+.mz-row{border-top:1px solid #3F4756}
+.mz-row:first-child{border-top:0}
+.mz-icon-btn{width:40px;height:40px;border:0;padding:0;border-radius:20px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#8991A2}
+.mz-row:hover .mz-icon-btn{color:#FFB872}
+.mz-icon-btn:hover{background:rgba(255,184,114,.08)}
+.mz-icon-btn:focus-visible{outline:2px solid #FFB872;color:#FFB872}
+@keyframes mz-spin{to{transform:rotate(360deg)}}
+.mz-spin{animation:mz-spin 1s linear infinite}
+</style>
+</helmet>
+<div class="mz-root" style="position: relative; width: 1428px; height: 830px; overflow: hidden; background: #10131A">
+  <div style="position: absolute; inset: 0; z-index: 0; isolation: isolate">
+    <dc-import name="Main" first-shelf="{{one}}" still="{{yes}}" hint-size="1428px,830px"></dc-import>
+  </div>
+  <div style="position: absolute; inset: 0; z-index: 1; background: rgba(0, 0, 0, 0.6)"></div>
+
+  <div role="dialog" aria-modal="true" aria-labelledby="ch-title" style="position: absolute; z-index: 2; left: 434px; top: 76px; width: 560px; height: 678px; box-sizing: border-box; padding: 28px 28px 20px; border-radius: 28px; background: #1C2026; display: flex; flex-direction: column; gap: 20px; color: #E0E2EC">
+
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <h2 id="ch-title" style="margin: 0; font-size: 24px; line-height: 32px; font-weight: 400">Your channels</h2>
+      <div style="font-size: 13px; line-height: 18px; letter-spacing: 0.25px; color: #BFC7D9">{{summary}}</div>
+    </div>
+
+    <sc-if value="{{adding}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; gap: 10px">
+        <label class="mz-field" style="flex: 1; height: 48px; box-sizing: border-box; padding: 0 16px; border: 1px solid #3F4756; border-radius: 24px; background: #0B0E15; display: flex; align-items: center">
+          <input type="url" placeholder="Paste a YouTube channel link" aria-label="YouTube channel URL" value="{{input}}" onChange="{{typed}}">
+        </label>
+        <button class="mz-text-btn" type="button" disabled="{{importDisabled}}" onClick="{{importIt}}" style="height: 48px; padding: 0 22px; border: 0; border-radius: 24px; font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; background: {{importBg}}; color: {{importFg}}">Import</button>
+      </div>
+      <div style="padding: 0 16px; font-size: 12px; line-height: 16px; letter-spacing: 0.25px; color: #8991A2">Only mixes of an hour or longer show up. Importing never starts playback.</div>
+    </div>
+    </sc-if>
+
+    <div class="mz-list" style="flex: 1; min-height: 0; overflow-y: auto; margin: 0 -8px; padding: 0 8px">
+      <sc-for list="{{channels}}" as="c" hint-placeholder-count="8">
+        <div class="mz-row" style="display: flex; align-items: center; gap: 12px; height: 52px">
+          <div style="flex: 1; min-width: 0; font-size: 15px; line-height: 22px; letter-spacing: 0.25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.name}}</div>
+          <div style="font-size: 13px; line-height: 18px; letter-spacing: 0.25px; color: {{c.metaColor}}; white-space: nowrap">{{c.meta}}</div>
+          <button class="mz-icon-btn" type="button" onClick="{{c.refresh}}" aria-label="{{c.label}}" disabled="{{c.busy}}">
+            <svg class="{{c.iconClass}}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path></svg>
+          </button>
+        </div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{debug}}" hint-placeholder-val="{{false}}">
+      <div style="font-size: 12px; line-height: 16px; letter-spacing: 0.25px; color: #8991A2">[ENGINE STATUS MESSAGE]</div>
+    </sc-if>
+
+    <div style="display: flex; align-items: center; gap: 8px">
+      <button class="mz-text-btn" type="button" onClick="{{toggleDebug}}" style="height: 40px; padding: 0 12px; margin-left: -12px; border: 0; border-radius: 20px; background: transparent; font: inherit; font-size: 13px; letter-spacing: 0.25px; color: #8991A2">{{debugLabel}}</button>
+      <div style="flex: 1"></div>
+      <button class="mz-text-btn" type="button" onClick="{{toggleAdd}}" aria-expanded="{{addingAria}}" style="height: 40px; padding: 0 16px; border: 0; border-radius: 20px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; color: #FFB872">{{addLabel}}</button>
+      <button class="mz-text-btn" type="button" onClick="{{refreshAll}}" style="height: 40px; padding: 0 16px; border: 0; border-radius: 20px; background: transparent; font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; color: #FFB872">Refresh all</button>
+      <a href="Main.dc.html" style="height: 40px; padding: 0 24px; border-radius: 20px; display: flex; align-items: center; background: #FFB872; font-size: 14px; font-weight: 500; letter-spacing: 0.1px; color: #4A2800; text-decoration: none">Done</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1428,"height":830}}'>
+const CHANNELS = [["Sepia Lounge", 99], ["Noir Tiki Lounge", 65], ["Jazz Haze", 124], ["The Safehouse Lounge", 58], ["Afterhours Club '70", 21], ["Futuristic Sound", 146], ["Old Tape Jazz", 693], ["We Are Jazz", 156], ["Chill Palace", 81], ["Static & Dust", 38]];
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { input: "", debug: false, adding: false, refreshing: {} };
+  }
+  componentWillUnmount() { (this.timers || []).forEach(clearTimeout); }
+  refresh(names) {
+    const busy = Object.assign({}, this.state.refreshing);
+    names.forEach((n) => { busy[n] = true; });
+    this.setState({ refreshing: busy });
+    this.timers = this.timers || [];
+    this.timers.push(setTimeout(() => {
+      const done = Object.assign({}, this.state.refreshing);
+      names.forEach((n) => { delete done[n]; });
+      this.setState({ refreshing: done });
+    }, 1600));
+  }
+  renderVals() {
+    const st = this.state;
+    const empty = st.input.trim() === "";
+    const busyCount = Object.keys(st.refreshing).length;
+    return {
+      one: 1, yes: true,
+      summary: busyCount ? "Refreshing " + busyCount + (busyCount === 1 ? " channel…" : " channels…") : CHANNELS.length + " channels · catalog up to date",
+      channels: CHANNELS.map(([name, count]) => {
+        const busy = !!st.refreshing[name];
+        return {
+          name: name,
+          meta: busy ? "Refreshing…" : count + " videos · Oct 16",
+          metaColor: busy ? "#FFB872" : "#8991A2",
+          busy: busy,
+          iconClass: busy ? "mz-spin" : "",
+          label: "Refresh " + name,
+          refresh: () => this.refresh([name])
+        };
+      }),
+      input: st.input,
+      typed: (e) => this.setState({ input: e.target.value }),
+      importDisabled: empty,
+      importBg: empty ? "rgba(224, 226, 236, 0.12)" : "#FFB872",
+      importFg: empty ? "rgba(224, 226, 236, 0.38)" : "#4A2800",
+      importIt: () => this.setState({ input: "", adding: false }),
+      adding: st.adding,
+      addingAria: st.adding ? "true" : "false",
+      addLabel: st.adding ? "Cancel" : "Add channel",
+      toggleAdd: () => this.setState({ adding: !st.adding, input: "" }),
+      debug: st.debug,
+      debugLabel: st.debug ? "Hide debug info" : "Debug info",
+      toggleDebug: () => this.setState({ debug: !st.debug }),
+      refreshAll: () => this.refresh(CHANNELS.map((c) => c[0]))
+    };
+  }
+}
+</script>
+</body>
+</html>

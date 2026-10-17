@@ -17,9 +17,9 @@ class MembershipTest {
         assertEquals(setOf("kitchen"), requestedMembers(ui))
     }
 
-    @Test fun unsupportedAndLastSpeakerCannotBeToggled() {
+    @Test fun lastSpeakerCanStopButUnsupportedDevicesCannotJoin() {
         val ui=PlayerUiState(snapshot=initial)
-        assertFalse(canToggleMembership(ui, kitchen))
+        assertTrue(canToggleMembership(ui, kitchen))
         assertTrue(canToggleMembership(ui, bedroom))
         assertFalse(canToggleMembership(ui, Device("tv", "TV", cast_type="cast")))
         assertFalse(canToggleMembership(ui, Device("group", "Group", cast_type="group")))
