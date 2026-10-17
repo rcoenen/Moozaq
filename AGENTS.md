@@ -6,6 +6,7 @@ Moozaq explores long-form YouTube music mixes on Google Nest speakers, with Andr
 
 - Inputs are ordinary YouTube video links. Do not require YouTube Premium or substitute a paid YouTube Music workflow.
 - Target independent receiver playback: the phone can leave and later synchronize without restarting the mix.
+- Before changing Cast discovery, group membership or recovery, read `docs/google-cast-lessons.md` for known failure modes and implementation rules.
 - Dependable controls are a defining feature. Follow `docs/playback-control-requirements.md`: confirmed actions, reliable Stop, clean reconnection, responsive sliders, honest status, and external-change synchronization.
 - Distinguish technical feasibility, audible confirmation, long-session reliability and production permission. A short extraction/playback success does not prove all four.
 

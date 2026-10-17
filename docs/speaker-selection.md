@@ -1,5 +1,7 @@
 # Speaker combinations
 
+**Current implementation reference:** [Google Cast and speaker-group lessons](google-cast-lessons.md). The dated sections below preserve investigation history; the early Mac limitations were superseded by the native temporary-group implementation described later in this document.
+
 The owner wants to select a combination of speakers, such as two devices from the existing “All speakers” setup, with synchronized playback and dependable controls. This is a feature requirement, not authorization to play audio on any group.
 
 ## Known devices
@@ -12,7 +14,7 @@ Google Home supports adding/removing devices for current playback without creati
 
 Implement this as a temporary playback combination, preserving the saved All speakers group. Use Cast's synchronized group session; independently starting the same track on multiple speakers is not equivalent and may drift.
 
-## Current Mac limitation
+## Initial Mac limitation (superseded)
 
 The installed PyChromecast multizone controller monitors group membership and status. Its inspected API does not provide a verified operation to create/change an arbitrary dynamic group. The Mac spike can select existing advertised groups, but cannot yet choose an arbitrary subset within All speakers.
 

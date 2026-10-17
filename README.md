@@ -8,6 +8,10 @@ An evolving music project for long-form, atmospheric mixes and home-speaker list
 
 The brief is a starting point, not a fixed specification. Later explicit decisions take precedence over its proposed architecture and roadmap.
 
+## Cast engineering reference
+
+[Google Cast and speaker-group lessons](docs/google-cast-lessons.md): discovery, passive monitoring, temporary grouping, recovery, confirmed controls, and validation limits.
+
 ## Playback spike
 
 [Android prototype and test instructions](android-spike/README.md). Includes the six starter links, native Cast controls, receiver-state sync, a local test-audio server, and an exportable hardware-test checklist. Real Nest playback remains to be tested.
