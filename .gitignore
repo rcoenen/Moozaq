@@ -7,3 +7,10 @@
 **/.venv/
 **/__pycache__/
 mac-spike/data/
+
+# Local agent tool state and per-tool skill installs
+.agents/
+.claude/
+.kimi-code/
+.opencode/
+.qwen/

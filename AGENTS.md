@@ -30,6 +30,7 @@ Use Bedroom speaker for playback only when explicitly requested. Do not use Offi
 - `docs/starter-videos.md`: six owner-selected sources.
 - `docs/spike-results.md`: observed outcomes and unresolved tests.
 - `docs/playback-options.md`: source/architecture research.
+- `openspec/specs/`: durable behavior contracts for the Android Cast client; `openspec/changes/archive/` holds completed change records. Validate with `openspec validate --all --strict`.
 
 ## Development and validation
 
