@@ -31,11 +31,17 @@ val MoozaqColors = darkColorScheme(
     fun style(size:Int,line:Int,weight:FontWeight,spacing:Double=0.0)=TextStyle(fontFamily=family,fontSize=size.sp,lineHeight=line.sp,fontWeight=weight,letterSpacing=spacing.sp)
     MaterialTheme(colorScheme=MoozaqColors, typography=Typography(
         titleLarge=style(22,28,FontWeight.Normal), headlineSmall=style(24,32,FontWeight.Normal),
-        titleMedium=style(16,24,FontWeight.SemiBold,.15), bodyLarge=style(16,24,FontWeight.Normal,.5),
-        bodyMedium=style(14,20,FontWeight.Normal,.25), labelLarge=style(14,20,FontWeight.Medium,.1),
-        labelMedium=style(12,16,FontWeight.Medium,.5), labelSmall=style(12,16,FontWeight.Medium,.5),
+        titleMedium=style(16,24,FontWeight.SemiBold,.15), titleSmall=style(14,20,FontWeight.SemiBold,.1),
+        bodyLarge=style(16,24,FontWeight.Normal,.5), bodyMedium=style(14,20,FontWeight.Normal,.25),
+        bodySmall=style(12,16,FontWeight.Normal,.4),
+        labelLarge=style(14,20,FontWeight.Medium,.1), labelMedium=style(12,16,FontWeight.Medium,.5),
+        labelSmall=style(12,16,FontWeight.Medium,.5),
     )) { CompositionLocalProvider(LocalReducedMotion provides reducedMotion, content=content) }
 }
+
+/** Now playing title: titleLarge at 600 per the handoff type table. */
+@Composable fun playerTitleStyle(): TextStyle = MaterialTheme.typography.titleLarge.copy(fontWeight=FontWeight.SemiBold)
+
 @Composable fun UiIcon(resource: DrawableResource, description:String?=null, modifier:Modifier=Modifier.size(24.dp), tint:Color=LocalContentColor.current) {
     Icon(painterResource(resource),description,modifier,tint=tint)
 }

@@ -12,8 +12,8 @@ android {
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 9
-        versionName = "0.3.7-standalone"
+        versionCode = 10
+        versionName = "0.4.0-standalone"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildFeatures { compose = true }

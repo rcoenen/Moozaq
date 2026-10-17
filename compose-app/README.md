@@ -14,7 +14,7 @@ Requires the existing `mac-spike/.venv` environment and Homebrew JDK 17. The lau
 
 ## Architecture
 
-- `composeApp/src/commonMain`: shared catalog, artwork resources, player state and Compose UI.
+- `composeApp/src/commonMain`: shared catalog, artwork resources, player state and Compose UI. Below 600 dp the UI is the phone design from `docs/design-handoff/android/` (Browse, Now playing, Cast to, Nothing playing); above 600 dp it is the desktop screen.
 - `composeApp/src/desktopMain`: desktop window and private JSON-lines subprocess adapter.
 - `bridge/server.py`: command bridge to the existing Python Cast engine. No network control endpoint; signed media URLs stay inside Python.
 - `androidApp/`: installable standalone Compose Android app with on-device source resolution, native Google Cast and a private metadata cache. No Mac dependency. See [`androidApp/README.md`](androidApp/README.md); `android-spike` remains a separate reference.

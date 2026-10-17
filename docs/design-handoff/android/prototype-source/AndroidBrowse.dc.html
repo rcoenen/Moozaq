@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moozaq Android – Browse</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#10131A}
+a{color:#FFB872}a:hover{color:#FFDCBE}
+.ma-root{font-family:"Roboto Flex",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.ma-scroll{scrollbar-width:none}.ma-scroll::-webkit-scrollbar{display:none}
+.ma-icon-btn{width:48px;height:48px;border:0;padding:0;border-radius:24px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;text-decoration:none}
+.ma-icon-btn:active{background:rgba(224,226,236,.12)}
+.ma-text-btn{cursor:pointer;text-decoration:none}
+.ma-text-btn:active{background:rgba(255,184,114,.12)}
+.ma-card{position:relative;flex:0 0 200px;width:200px;border-radius:12px;background:#1C2026;overflow:hidden;scroll-snap-align:start}
+.ma-card.ma-now{outline:2px solid #FFB872;outline-offset:-2px}
+.ma-hit{position:absolute;inset:0;z-index:1;background:transparent;border:0;padding:0;margin:0;cursor:pointer;border-radius:12px}
+.ma-hit:focus-visible{outline:2px solid #FFB872;outline-offset:-2px}
+.ma-hit:active{background:rgba(224,226,236,.12)}
+.ma-hit:disabled{cursor:default}
+a.ma-hit{display:block}
+.ma-scrim{position:absolute;inset:0;background:rgba(16,19,26,.35);pointer-events:none}
+.ma-badge{position:absolute;left:8px;top:8px;height:24px;padding:0 10px 0 8px;border-radius:12px;background:rgba(16,19,26,.85);display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;font-weight:500;letter-spacing:.5px;color:#FFB872;pointer-events:none}
+.ma-clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ma-ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@keyframes ma-eq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+.ma-eq rect{transform-origin:bottom;transform-box:fill-box;animation:ma-eq .9s ease-in-out infinite}
+.ma-eq rect:nth-child(2){animation-delay:-.3s}
+.ma-eq rect:nth-child(3){animation-delay:-.6s}
+.ma-eq.ma-paused rect{animation-play-state:paused}
+@keyframes ma-spin{to{transform:rotate(360deg)}}
+.ma-spin{animation:ma-spin 1s linear infinite}
+@media (prefers-reduced-motion: reduce){.ma-eq rect{animation:none}}
+</style>
+</helmet>
+<div class="ma-root" style="position: relative; width: 412px; height: 915px; overflow: hidden; background: #10131A; color: #E0E2EC; display: flex; flex-direction: column">
+
+  <div style="height: 64px; flex-shrink: 0; padding: 0 4px 0 16px; display: flex; align-items: center; gap: 4px">
+    <img src="/_blob/cf3be73a2d65df8c26979f0acdcb9dc6" alt="Moozaq" style="width: 148px; height: 40px; object-fit: contain; object-position: left center; display: block">
+    <div style="flex: 1"></div>
+    <a href="AndroidCast.dc.html" class="ma-icon-btn" aria-label="{{castAria}}">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill="{{castIcon}}" d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"></path><path fill="{{castFrame}}" d="M19 7H5v1.63c3.96 1.28 7.09 4.41 8.37 8.37H19V7z"></path></svg>
+    </a>
+    <button class="ma-text-btn" type="button" style="height: 40px; padding: 0 12px; border: 0; border-radius: 20px; background: transparent; font: inherit; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px; color: #FFB872">Channels</button>
+  </div>
+
+  <div class="ma-scroll" style="flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 96px; display: flex; flex-direction: column; gap: 8px">
+    <sc-for list="{{shelves}}" as="shelf" hint-placeholder-count="2">
+      <h2 style="margin: 0; padding: 16px 16px 8px; font-size: 22px; line-height: 28px; font-weight: 400; color: #E0E2EC">{{shelf.name}}</h2>
+      <div class="ma-scroll" style="display: flex; gap: 12px; overflow-x: auto; padding: 0 16px; scroll-snap-type: x mandatory; scroll-padding: 0 16px; flex-shrink: 0">
+        <sc-for list="{{shelf.mixes}}" as="m" hint-placeholder-count="3">
+          <div class="{{m.cardClass}}">
+            <sc-if value="{{m.isNow}}" hint-placeholder-val="{{false}}">
+              <a href="AndroidPlayer.dc.html" class="ma-hit" aria-label="{{m.openLabel}}"></a>
+            </sc-if>
+            <sc-if value="{{m.notNow}}" hint-placeholder-val="{{true}}">
+              <button class="ma-hit" type="button" aria-label="{{m.playLabel}}" disabled="{{m.busy}}" onClick="{{m.play}}"></button>
+            </sc-if>
+            <div style="position: relative">
+              <img src="{{m.cover}}" alt="" style="width: 200px; height: 112px; object-fit: cover; display: block">
+              <sc-if value="{{m.isNow}}" hint-placeholder-val="{{false}}">
+                <div class="ma-scrim"></div>
+                <div class="ma-badge"><svg class="{{m.eqClass}}" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="0" y="0" width="3" height="12" rx="1" fill="#FFB872"></rect><rect x="4.5" y="0" width="3" height="12" rx="1" fill="#FFB872"></rect><rect x="9" y="0" width="3" height="12" rx="1" fill="#FFB872"></rect></svg>{{m.badgeText}}</div>
+              </sc-if>
+              <sc-if value="{{m.starting}}" hint-placeholder-val="{{false}}">
+                <div class="ma-scrim"></div>
+                <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none">
+                  <div style="width: 48px; height: 48px; border-radius: 24px; background: rgba(16, 19, 26, 0.85); display: flex; align-items: center; justify-content: center">
+                    <svg class="ma-spin" width="24" height="24" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="#FFB872" stroke-width="2" stroke-dasharray="40 100" stroke-linecap="round"></circle></svg>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="padding: 12px; display: flex; flex-direction: column; gap: 4px; pointer-events: none">
+              <div class="ma-clamp" style="font-size: 14px; line-height: 20px; height: 40px; letter-spacing: 0.1px; font-weight: 600; color: #E0E2EC">{{m.title}}</div>
+              <div class="ma-ell" style="font-size: 14px; line-height: 20px; letter-spacing: 0.25px; color: #BFC7D9">{{m.creator}}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+
+  <div aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 0; height: 168px; pointer-events: none; background: linear-gradient(to bottom, rgba(16, 19, 26, 0) 0%, rgba(16, 19, 26, 0.85) 45%, #10131A 75%)"></div>
+  <div style="position: absolute; left: 8px; right: 8px; bottom: 16px; height: 64px; border-radius: 16px; background: #31353C; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); overflow: hidden; display: flex; align-items: center; padding-right: 4px">
+    <sc-if value="{{active}}" hint-placeholder-val="{{true}}">
+      <a href="AndroidPlayer.dc.html" aria-label="{{openPlayerAria}}" style="flex: 1; min-width: 0; height: 64px; box-sizing: border-box; padding: 8px 0 8px 8px; display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit">
+        <img src="{{now.cover}}" alt="" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; display: block; flex-shrink: 0">
+        <div style="flex: 1; min-width: 0">
+          <div class="ma-ell" style="font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: 0.1px; color: #E0E2EC">{{now.title}}</div>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; letter-spacing: 0.4px; color: #BFC7D9">
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="#A2D2A3" d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm18-7H5v1.63c3.96 1.28 7.09 4.41 8.37 8.37H19V7zM1 10v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"></path></svg>
+            <span class="ma-ell">{{miniStatus}}</span>
+          </div>
+        </div>
+      </a>
+      <button class="ma-icon-btn" type="button" aria-label="{{toggleAria}}" disabled="{{awaiting}}" onClick="{{toggle}}">
+        <sc-if value="{{awaiting}}" hint-placeholder-val="{{false}}">
+          <svg class="ma-spin" width="24" height="24" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="#BFC7D9" stroke-width="2" stroke-dasharray="40 100" stroke-linecap="round"></circle></svg>
+        </sc-if>
+        <sc-if value="{{showPauseMini}}" hint-placeholder-val="{{true}}">
+          <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path fill="#E0E2EC" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+        </sc-if>
+        <sc-if value="{{showPlayMini}}" hint-placeholder-val="{{false}}">
+          <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path fill="#E0E2EC" d="M8 5v14l11-7z"></path></svg>
+        </sc-if>
+      </button>
+      <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #59422D">
+        <div style="height: 3px; width: {{progressW}}; background: #FFB872"></div>
+      </div>
+    </sc-if>
+    <sc-if value="{{isIdle}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1; min-width: 0; height: 64px; box-sizing: border-box; padding: 8px 0 8px 8px; display: flex; align-items: center; gap: 12px">
+        <div style="position: relative; width: 48px; height: 48px; border-radius: 8px; background: #31353C; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden">
+          <sc-if value="{{hasLast}}" hint-placeholder-val="{{true}}">
+            <img src="{{lastCover}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.7">
+          </sc-if>
+          <sc-if value="{{noLast}}" hint-placeholder-val="{{false}}">
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill="#BFC7D9" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path></svg>
+          </sc-if>
+        </div>
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: 0.1px; color: #E0E2EC">Nothing playing</div>
+          <div class="ma-ell" style="font-size: 12px; line-height: 16px; letter-spacing: 0.4px; color: #BFC7D9">{{idleHint}}</div>
+        </div>
+      </div>
+      <sc-if value="{{hasLast}}" hint-placeholder-val="{{true}}">
+        <button type="button" aria-label="{{playAgainAria}}" disabled="{{playAgainBusy}}" onClick="{{playAgain}}" style="width: 40px; height: 40px; margin: 0 8px; border: 0; padding: 0; border-radius: 20px; background: #FFB872; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0">
+          <sc-if value="{{playAgainBusy}}" hint-placeholder-val="{{false}}">
+            <svg class="ma-spin" width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="#4A2800" stroke-width="2" stroke-dasharray="40 100" stroke-linecap="round"></circle></svg>
+          </sc-if>
+          <sc-if value="{{playAgainIdle}}" hint-placeholder-val="{{true}}">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4A2800" d="M8 5v14l11-7z"></path></svg>
+          </sc-if>
+        </button>
+      </sc-if>
+    </sc-if>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"playback":{"editor":"enum","options":["playing","stopped","fresh"],"default":"playing"},"still":{"editor":"boolean","default":false},"$preview":{"width":412,"height":915}}'>
+const SHELVES = [{"name": "Cozy Jazz / Swing", "mixes": [{"title": "Just Being Myself. – Warm, Cozy Vintage Jazz for Autumn Relaxation", "creator": "Sepia Lounge", "cover": "/_blob/771e6c0326e47ff6c078e58fe1358e3e"}, {"title": "Nothing More Needed. – Warm, Smoky Vintage Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/0c3e02ab4ff4df37a6062fd85c3c3535"}, {"title": "Doing My Best. – Warm, Smoky 1940s Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/6c2bd3e3eda888c7dd7721752a0355c0"}, {"title": "Make It Strong. – Cozy Coffee Jazz for Slow Moments", "creator": "Sepia Lounge", "cover": "/_blob/499a663ef542b3d9e2e0434e184904a6"}, {"title": "Coming? – Smooth Retro Jazz for Late Nights", "creator": "Sepia Lounge", "cover": "/_blob/c19fc3f8ecb4b9a5ac853e5cd82bbf87"}, {"title": "Let It Burn. – Vintage 1940s Jazz for Late Nights", "creator": "Sepia Lounge", "cover": "/_blob/b719b856b22745db9947fe365bc7dac6"}]}, {"name": "Dark Jazz / Trip-Hop", "mixes": [{"title": "Dark Jazz & Cinematic Trip-Hop // Midnight Fever Motel // Dawn Is Still Hours Away", "creator": "Jazz Haze", "cover": "/_blob/c948ed1d75eab7e14b41f37b9ae8ca9b"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Golden Vice Club // The Night Begins", "creator": "Jazz Haze", "cover": "/_blob/15207947ae0a0e96071a276b1e4fb10e"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Red Halo Motel // 3 AM on an Endless Highway", "creator": "Jazz Haze", "cover": "/_blob/ac718e58403fa41bfa4d32ed7e34486e"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Cherry Static Fever // Late Night Drive", "creator": "Jazz Haze", "cover": "/_blob/e386870af95eb2296a7c3b37cefa8126"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Dangerous Summer Love // Keep Driving", "creator": "Jazz Haze", "cover": "/_blob/899159953f6f773bca86861c44e1e23b"}, {"title": "Dark Jazz & Cinematic Trip-Hop // Scarlet City Nights // Music for Driving After Dark", "creator": "Jazz Haze", "cover": "/_blob/82f16d03ff99648adaaad1a4b950426a"}]}, {"name": "Desert / Psychedelia", "mixes": [{"title": "THE LAST RUN TO ELKO | Spaghetti Western Surf, Desert Exotica & Cold War Noir", "creator": "Noir Tiki Lounge", "cover": "/_blob/0f615dc275dd1ef07c4f36ca6c535e54"}, {"title": "THE SCORPION'S LAIR – Hypnotic Desert Noir & Dark Arabic Exotica (High Fidelity Stereo)", "creator": "Noir Tiki Lounge", "cover": "/_blob/ad6cc78bdd172cadb6c241ef375de1b3"}, {"title": "Midnight Séance | Psychedelic Vintage Dark Exotica Lounge", "creator": "Noir Tiki Lounge", "cover": "/_blob/07cfb2ae17884cc23ba0c0d0ab237092"}, {"title": "Cosmic Mirage| Psychedelic Vintage Dark Exotica Lounge", "creator": "Noir Tiki Lounge", "cover": "/_blob/049d040b6b07c5a3d74f7ca5769cbdcc"}, {"title": "SPAGHETTI CUMBIA | Desert Noir & Psychedelic Vintage Lounge", "creator": "Noir Tiki Lounge", "cover": "/_blob/eccab436fab76b20ee2a82cad55c0f44"}, {"title": "THE FARFISA MIRAGE | Psychedelic 60s Vintage Lounge & Hypnotic Organ", "creator": "Noir Tiki Lounge", "cover": "/_blob/46574b3c62e5ed0a8a538978d7b7f2d8"}]}, {"name": "Noir Jazz", "mixes": [{"title": "This Suits Me. – Smoky Noir Jazz for Quiet City Nights", "creator": "Sepia Lounge", "cover": "/_blob/89d76d27ddf1a0c0925ac69f71b3670c"}, {"title": "Keeping You Company. – Chill Vintage Noir Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/13108a7f66e34c57e6cfc6bd263ae914"}, {"title": "I’m Staying Put. – Cozy, Quiet Vintage Noir Jazz for Relaxation & Unwinding", "creator": "Sepia Lounge", "cover": "/_blob/b28a0e9fd7106a6ed83b2776576621de"}, {"title": "Plenty of Time. – Chill Vintage Noir Jazz to Relax & Unwind", "creator": "Sepia Lounge", "cover": "/_blob/8a273d8a0f23d84c0cbf310a48a1b05f"}, {"title": "Vintage Noir Jazz for Quiet Nights – The World Can Wait.", "creator": "Sepia Lounge", "cover": "/_blob/21173e0a779d612cb923b83a7b6c8555"}, {"title": "Ease Into It. – Warm Vintage Noir Jazz for Quiet Moments", "creator": "Sepia Lounge", "cover": "/_blob/085ca9d60b87899c4c5d39438fab4ada"}]}];
+const DEVICE = "Bedroom speaker";
+
+function initial(mode) {
+  mode = mode || "playing";
+  return {
+    now: mode === "fresh" ? null : SHELVES[1].mixes[0],
+    receiver: mode === "playing" ? "PLAYING" : "IDLE",
+    position: mode === "playing" ? 3642 : 0, duration: 5567,
+    transport: null, starting: null
+  };
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = initial(props.playback);
+  }
+  componentDidMount() {
+    if (this.props.still) return;
+    this.tick = setInterval(() => {
+      if (this.state.receiver === "PLAYING") this.setState({ position: Math.min(this.state.duration, this.state.position + 1) });
+    }, 1000);
+  }
+  componentDidUpdate(prev) {
+    if (prev.playback !== this.props.playback) this.setState(initial(this.props.playback));
+  }
+  componentWillUnmount() { clearInterval(this.tick); (this.timers || []).forEach(clearTimeout); }
+  later(ms, fn) { this.timers = this.timers || []; this.timers.push(setTimeout(fn, ms)); }
+
+  toggle() {
+    const r = this.state.receiver;
+    if (this.state.transport || (r !== "PLAYING" && r !== "PAUSED")) return;
+    const pausing = r === "PLAYING";
+    this.setState({ transport: pausing ? "PAUSED" : "PLAYING" });
+    this.later(1300, () => this.setState({ receiver: pausing ? "PAUSED" : "PLAYING", transport: null }));
+  }
+  play(mix, key) {
+    if (this.state.starting) return;
+    this.setState({ starting: key });
+    this.later(1600, () => this.setState({ starting: null, now: mix, receiver: "PLAYING", position: 0, duration: 5400 + Math.floor(Math.random() * 3600) }));
+  }
+
+  renderVals() {
+    const st = this.state;
+    const r = st.receiver;
+    const isIdle = r === "IDLE";
+    const shelves = SHELVES.map((shelf, si) => ({
+      name: shelf.name,
+      mixes: shelf.mixes.map((m, mi) => {
+        const key = si + ":" + mi;
+        const starting = st.starting === key;
+        const isNow = !!st.now && st.now.title === m.title && !isIdle;
+        const nowPlaying = isNow && r === "PLAYING";
+        return Object.assign({}, m, {
+          cardClass: "ma-card" + (isNow ? " ma-now" : ""),
+          starting: starting,
+          showPlay: !starting && !nowPlaying, showPause: !starting && nowPlaying,
+          isNow: isNow, notNow: !isNow, busy: !!st.starting,
+          badgeText: nowPlaying ? "Now playing" : "Paused",
+          eqClass: "ma-eq" + (nowPlaying ? "" : " ma-paused"),
+          openLabel: "Open player: " + m.title,
+          playLabel: (starting ? "Starting " : nowPlaying ? "Pause " : isNow ? "Resume " : "Play ") + m.title,
+          play: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (isNow) this.toggle(); else this.play(m, key); }
+        });
+      })
+    }));
+    const last = st.now;
+    const awaiting = !!st.transport;
+    const showPause = r === "PLAYING";
+    return {
+      shelves: shelves,
+      now: st.now || {},
+      active: !isIdle, isIdle: isIdle,
+      castIcon: isIdle ? "#BFC7D9" : "#A2D2A3",
+      castFrame: isIdle ? "transparent" : "#A2D2A3",
+      castAria: isIdle ? "Cast to " + DEVICE : "Casting to " + DEVICE + ". Choose devices",
+      openPlayerAria: "Open player: " + ((st.now && st.now.title) || ""),
+      miniStatus: (awaiting ? (st.transport === "PAUSED" ? "Pausing…" : "Resuming…") : r === "PAUSED" ? "Paused" : "Casting") + " · " + DEVICE,
+      awaiting: awaiting,
+      showPauseMini: !awaiting && showPause, showPlayMini: !awaiting && !showPause,
+      toggleAria: showPause ? "Pause" : "Resume",
+      toggle: () => this.toggle(),
+      progressW: (Math.min(1, st.position / st.duration) * 100).toFixed(2) + "%",
+      hasLast: !!last, noLast: !last,
+      lastCover: last ? last.cover : "",
+      idleHint: last ? "Last played: " + last.title : "Pick a mix to cast to " + DEVICE,
+      playAgain: () => { if (last) this.play(last, "again"); },
+      playAgainBusy: !!st.starting, playAgainIdle: !st.starting,
+      playAgainAria: "Play again: " + ((last && last.title) || "")
+    };
+  }
+}
+</script>
+</body>
+</html>

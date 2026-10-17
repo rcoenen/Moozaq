@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moozaq Android – Nothing playing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#10131A}
+</style>
+</helmet>
+<div style="width: 412px; height: 915px; overflow: hidden; background: #10131A">
+  <dc-import name="AndroidBrowse" playback="{{mode}}" hint-size="412px,915px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"mode":{"editor":"enum","options":["stopped","fresh"],"default":"stopped"},"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { mode: this.props.mode ?? "stopped" };
+  }
+}
+</script>
+</body>
+</html>

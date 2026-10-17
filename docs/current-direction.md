@@ -224,3 +224,11 @@ Owner found that mix Play clicks were silent when the selected speaker was disco
 ### Pending start presents the requested mix (2026-10-17)
 
 Owner identified that starting a second mix showed the old track's artwork, title and timeline beside a generic Starting label. Android 0.3.7 (code 9) now presents the requested mix's title and artwork with Starting and hides the old timeline until fresh receiver confirmation. A real Office transition from Just Being Myself to Nothing More Needed visually confirmed the corrected pending panel and then PLAYING for the requested source; 35 Android and 39 shared tests pass.
+
+### Android phone UI rebuilt from the owner handoff (2026-10-17)
+
+The owner supplied the Android design handoff and asked for the phone UI to follow it exactly; the archive lives at `docs/design-handoff/android/`. Android 0.4.0 (code 10) now uses the handoff's four screens instead of the previous compact bar: Browse with a 64 dp app bar, snapping 200 dp mix cards that start on tap, a 64 dp mini player, a full-screen Now playing controller, and a Cast to bottom sheet. Seek, volume and Stop casting live only in Now playing; the app-bar Cast button replaces the device chip; the X becomes a spelled-out Stop casting; cards no longer carry play buttons.
+
+The phone path and the desktop path share catalog, `PlayerStore`, confirmation rules and tokens but not layout: above 600 dp the existing desktop screen is unchanged. Every pending state still ends on fresh receiver state, never on a simulated timer. Two honest deviations are recorded in `docs/spike-results.md`: the Cast button is our own vector opening the Cast to sheet rather than the SDK `MediaRouteButton`, because Moozaq owns and confirms routing, and a pending Stop keeps a "Stopping…" label the handoff does not specify.
+
+The owner's open questions were left open rather than guessed: no Stop casting inside Cast to, no group-volume scaling decision, device order stays as the SDK returns it, and predictive back uses a plain collapse.

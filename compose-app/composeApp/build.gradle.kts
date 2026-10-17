@@ -16,6 +16,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.components.resources)
+            implementation("org.jetbrains.compose.ui:ui-backhandler:1.9.1")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
         }

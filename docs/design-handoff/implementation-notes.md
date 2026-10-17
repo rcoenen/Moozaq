@@ -29,3 +29,27 @@ Silent control regressions cover last-participant Stop routing, pending acknowle
 ## Native Mac window appearance
 
 The title bar must use dark macOS chrome to match the always-dark Compose content. Set `apple.awt.application.appearance=NSAppearanceNameDarkAqua` as a JVM launch argument before AWT/AppKit initializes. The setting is applied to packaged launches, Gradle run and the silent design preview; it does not change macOS-wide appearance or remove native window controls. OpenJDK's [AppKit initialization](https://github.com/openjdk/jdk/blob/master/src/java.desktop/macosx/native/libosxapp/NSApplicationAWT.m) otherwise chooses Aqua by default.
+
+## Phone implementation (October 17, 2026)
+
+Implemented from the Android handoff in `android/`. The phone layout is used below 600 dp and replaces the earlier compact bar; the desktop screen above 600 dp is unchanged.
+
+## Mapping
+
+- `Dimens.kt`: every dp value from the handoff (screen margin, 64 dp app bar, 200 × 112 cards, 64 dp mini player, 364 × 205 cover, 96 dp play/pause, 28 dp sheet corners, 16/12 dp slider tracks, 4 dp thumb) plus the motion constants.
+- `Design.kt`: adds `titleSmall` (14/20 600) and `bodySmall` (12/16 400) to complete the phone type scale, and `playerTitleStyle()` for the bold 22/28 Now playing title.
+- `MzControls.kt`: flat-track sliders matching the handoff geometry inside a 44 dp hit area, the 900 ms equalizer with a 300 ms per-bar offset, the 1 s linear spinner and the 18 dp checkbox in a 48 dp target.
+- `PhoneModel.kt`: pure derivation of title, creator, device name, status and card state from confirmed receiver state plus one explicit pending request. Eight tests in `PhonePresentationTest` cover stopped, first launch, paused, casting, starting, seeking/pausing and failed requests.
+- `PhoneBrowse.kt`: app bar, shelves, shelf snapping, card states, the 168 dp bottom fade and the mini player.
+- `PhoneNowPlaying.kt`: expanded controller with seek, session volume and Stop casting.
+- `PhoneCastTo.kt`: modal sheet with one card per device; behaviour still routes through `canToggleMembership`, `canSelectDestination` and `canAdjustOutputVolume`.
+- `PhoneApp.kt`: screen state, back handling, the error snackbar and sheet/dialog layering.
+- `SystemMotion.kt`: `systemReducedMotion()` with an Android actual reading the system animation scale and a desktop stub.
+
+## Integration decisions
+
+The Cast button is our own vector opening the Cast to sheet, not the SDK `MediaRouteButton`: Moozaq owns destination selection and confirmation, and the handoff itself marks its cast vectors mockup-only. Slider and checkbox states follow the handoff geometry but keep the product's intent → pending → confirmed rules, so a pending control is grey and locked and a failed one is tinted as an error rather than rolled back.
+
+A pending Stop shows "Stopping…" even though the handoff table has no Stopping row, because reporting a stop before receiver confirmation is forbidden. Devices whose volume has not been read show a disabled slider rather than an invented level. The prototype's simulated delays are not copied; every pending state ends on fresh receiver state.
+
+The handoff's open questions are still open: no Stop casting inside the sheet, no group-volume scaling decision, device order as the SDK returns it, and plain back for collapsing Now playing.

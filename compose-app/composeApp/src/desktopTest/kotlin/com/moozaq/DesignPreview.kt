@@ -6,13 +6,25 @@ import androidx.compose.ui.window.*
 import kotlinx.coroutines.delay
 
 /** Interactive visual fixture. It never constructs a network backend or opens a receiver. */
-private class DesignPreviewBackend: PlayerBackend {
+private class DesignPreviewBackend(mode:String="playing"): PlayerBackend {
+    private val mode=mode
     private val devices=listOf(Device("group","All speakers",cast_type="group"),Device("bedroom","Bedroom speaker",cast_type="audio"),Device("kitchen","Kitchen speaker",cast_type="audio"))
     private val mixes=catalog.map {it.copy(duration=10966.0,category="Mock mixes — no speaker connection")}
-    private var s=Snapshot(devices=devices,target="group",receiver=Receiver(connected=true,device="All speakers",title=mixes[0].title,state="PLAYING",source=mixes[0].url,position=623.0,duration=10966.0,volume=20),
+    private val playing=Snapshot(devices=devices,target="bedroom",receiver=Receiver(connected=true,device="Bedroom speaker",title=mixes[0].title,state="PLAYING",source=mixes[0].url,position=623.0,duration=10966.0,volume=20),
         membership=PlaybackMembership(members=listOf("bedroom","kitchen"),available=true,token="mock"),
         outputs=devices.map {OutputState(it.id,connected=true,state="PLAYING",volume=.2)},message="Mock data. No Cast engine exists in this preview.")
-    override suspend fun snapshot()=s
+    private val idle=playing.copy(receiver=Receiver(connected=true,device="Bedroom speaker",state="IDLE",volume=20))
+    private val started=kotlin.time.TimeSource.Monotonic.markNow()
+    private var s=when(mode) {
+        "fresh" -> playing.copy(receiver=Receiver(connected=true,device="Bedroom speaker",state="IDLE",volume=20))
+        "paused" -> playing.copy(receiver=playing.receiver.copy(state="PAUSED"))
+        else -> playing
+    }
+    override suspend fun snapshot():Snapshot {
+        if(mode=="stopped" && s.receiver.state=="PLAYING" && started.elapsedNow().inWholeSeconds>=3)
+            s=idle.copy(receiver=idle.receiver.copy(transport_revision=s.receiver.transport_revision+1))
+        return s
+    }
     override suspend fun catalog()=CatalogData(channels=listOf(CatalogChannel("Mock channel","https://www.youtube.com/@mock",count=6)),mixes=mixes)
     override suspend fun selectDevice(id:String) {s=s.copy(target=id,receiver=s.receiver.copy(device=devices.first {it.id==id}.name))}
     override suspend fun play(source:String) {
@@ -39,11 +51,19 @@ private class DesignPreviewBackend: PlayerBackend {
     override fun close() {}
 }
 
+/**
+ * MOOZAQ_PREVIEW selects a mock state: playing (default), paused, stopped (plays then goes
+ * idle) or fresh (never played). MOOZAQ_PREVIEW_SIZE=phone opens a 412 x 915 dp window so the
+ * phone layouts can be reviewed without a device or a speaker.
+ */
 fun main()=application {
     val scope=rememberCoroutineScope()
-    val store=remember {PlayerStore(DesignPreviewBackend(),scope)}
+    val mode=System.getenv("MOOZAQ_PREVIEW") ?: "playing"
+    val phone=System.getenv("MOOZAQ_PREVIEW_SIZE")=="phone"
+    val store=remember {PlayerStore(DesignPreviewBackend(mode),scope)}
     LaunchedEffect(Unit) {store.start()}
-    Window(onCloseRequest=::exitApplication,title="Moozaq design preview · Mock data · No speakers",state=rememberWindowState(width=1428.dp,height=830.dp)) {
+    Window(onCloseRequest=::exitApplication,title="Moozaq design preview · Mock data · No speakers",
+        state=rememberWindowState(width=if(phone) 412.dp else 1428.dp,height=if(phone) 915.dp else 830.dp)) {
         MoozaqApp(store)
     }
 }

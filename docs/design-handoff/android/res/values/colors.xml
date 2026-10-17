@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="mz_primary">#FFB872</color>
+    <color name="mz_on_primary">#4A2800</color>
+    <color name="mz_primary_container">#6A3C00</color>
+    <color name="mz_on_primary_container">#FFDCBE</color>
+    <color name="mz_secondary_container">#59422D</color>
+    <color name="mz_on_secondary_container">#FFDCBF</color>
+    <color name="mz_tertiary">#A2D2A3</color>
+    <color name="mz_surface">#10131A</color>
+    <color name="mz_surface_container_lowest">#0B0E15</color>
+    <color name="mz_surface_container_low">#181C22</color>
+    <color name="mz_surface_container">#1C2026</color>
+    <color name="mz_surface_container_high">#272A31</color>
+    <color name="mz_surface_container_highest">#31353C</color>
+    <color name="mz_on_surface">#E0E2EC</color>
+    <color name="mz_on_surface_variant">#BFC7D9</color>
+    <color name="mz_outline">#8991A2</color>
+    <color name="mz_outline_variant">#3F4756</color>
+    <color name="mz_error">#FFB4AB</color>
+</resources>

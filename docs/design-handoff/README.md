@@ -21,3 +21,7 @@ Live spec doc: https://claude.ai/code/artifact/85833486-35d2-44df-9ee2-d6819fbe5
 - `prototype-source` files are reference markup for layout, states and logic. They render only inside the design canvas, and their images point at canvas-hosted assets (`/_blob/...`). Open the live prototype to see them.
 - Cast icons must come from the Google Cast SDK in production; the SVGs here are for mockups.
 - Latencies in the prototype are simulated. In production, end each pending state on the Cast receiver's status event.
+
+## Android phone handoff
+
+`android/` holds the owner-supplied Android handoff: the 412 × 915 dp phone spec (PDF), its Compose theme files, `res/` colors and 12 XML vectors, tokens, navigation image and prototype sources. Both PDFs describe the same Material 3 dark system and the same color roles; the phone spec adds the 64 dp mini player, the full-screen controller, the Cast to sheet and the phone type scale. The implemented mapping and its deviations are in `implementation-notes.md`.

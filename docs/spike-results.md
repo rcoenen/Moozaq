@@ -444,3 +444,29 @@ With explicit owner authorization, the real Midnight Fever Motel button was used
 The owner identified a second presentation contradiction: after starting another mix, the bottom panel showed the old track's title, artwork and timeline beside Starting. Android 0.3.7 / code 9 now uses the pending transport's requested source for the title/artwork and hides the old timeline until receiver confirmation. Desktop and mobile share the same requested-mix behavior.
 
 Validation: Android assemble, androidTest assemble and lint passed; **35 Android unit tests and 39 shared desktop tests** passed with no failures/errors/skips. `dumpsys` verified code 9 / 0.3.7. With explicit owner authorization, Office switched from Just Being Myself to Nothing More Needed. The pending screenshot shows Nothing More Needed's title/artwork with Starting and no old timeline. Logs show one `play.request` for `GzUPBC6j3ms`, one preflight and one LOAD, with receiver-confirmed PLAYING at 18:59:23 UTC. The final screenshot shows the same requested track Playing. Evidence: ignored `compose-app/androidApp/build/validation/037-pending.png` and `037-final.png`.
+
+### Android 0.4.0 phone UI from the handoff (2026-10-17)
+
+The owner supplied `moozaq-android-handoff.zip` and asked for the Android UI to follow it exactly. The archive is kept as reference at `docs/design-handoff/android/` (PDF, Compose theme files, tokens, XML vectors, prototypes).
+
+Implemented as the phone layout below 600 dp, replacing the previous compact player:
+
+- Browse: 64 dp top app bar with the 148 × 40 wordmark, a 48 dp Cast button and Channels; snapping 200 dp shelves; cards with no play buttons — the whole card starts the mix, the current card opens Now playing.
+- Card states: default, ripple press, Starting (35% scrim plus a 48 dp disc with a primary 1 s spinner), Now playing (2 dp primary outline, dimmed cover, equalizer badge) and Paused (frozen bars, "Paused" badge).
+- Mini player: 64 dp, corner 16, surfaceContainerHighest, 8 dp shadow, 48 dp cover, one-line title, cast icon plus status, 48 dp pause/resume with spinner while pending, 3 dp progress bar, and the Stopped/First launch states with "Nothing playing", "Last played: …", "Pick a mix to cast to {device}" and the 40 dp Play again circle.
+- Now playing: full screen on surfaceContainerLowest with collapse chevron, centred "Casting to" over the device name, 364 × 205 cover, bold two-line title, "{creator} · Playing", 16 dp-track seek, 96 dp play/pause (corner 28), session volume row and a full-width outlined Stop casting 32 dp from the bottom.
+- Cast to: Material modal sheet, surfaceContainerLow, 28 dp top corners, 32 × 4 handle, one 20 dp card per device with a 48 dp checkbox target, device icon, name and that device's volume.
+
+Tokens, copy, TalkBack labels and motion come from the handoff: `Dimens`, typography additions (`titleSmall`, `bodySmall`), the custom 4 dp-thumb sliders, the 900 ms/300 ms equalizer and the 1 s spinner. `systemReducedMotion()` reads Android's animation-duration scale so the bars freeze with the system "Remove animations" setting; the Channels debug toggle still forces it.
+
+Deliberate deviations, all recorded here rather than hidden:
+
+- The Cast button is our own 24 dp cast vector opening the Cast to sheet, not the SDK `MediaRouteButton`. Moozaq owns destination selection and confirmation; layering the SDK picker would duplicate routing and bypass the confirmed-route guards. The handoff's own README calls its cast vectors mockup-only, so tint and states follow the spec but the widget does not.
+- A pending Stop keeps an honest "Stopping…" label and disables the control; the handoff table has no Stopping state, but the product rule forbids reporting a stop before the receiver confirms it.
+- Devices whose volume has not been read show a disabled slider at zero rather than a fabricated level, and a checked device that cannot currently be joined keeps a grey, locked checkbox. Both are honest states rather than design fills.
+- The handoff's "unchecking the last device stops playback" only applies where the receiver exposes native membership. On a plain single-speaker session the checkbox is locked, so Stop casting in Now playing is the only way to end it. Group rows still select a destination rather than adding members. Both gaps are in the backend's membership capability, not the styling, and are recorded here instead of being simulated in the UI.
+- The handoff's prototype delays are not copied. Every pending state ends on fresh receiver state, and the 15 s readiness bound from 0.3.6 still applies to Play.
+
+Validation: `:androidApp:assembleDebug`, `:androidApp:lintDebug`, `:androidApp:testDebugUnitTest` and `:composeApp:desktopTest` pass with **35 Android unit tests and 47 shared tests** (39 previous plus 8 new phone-presentation tests). `dumpsys` verified 0.4.0 / code 10 on the Pixel 6a.
+
+Visual checks, none of which started audio: the installed build was cold launched while an authorized Office session was already playing, so the existing session was rejoined passively and the screenshots show casting Browse, Now playing and Cast to with the live Office session. The Stopped and First launch mini-player states were captured from the silent `:composeApp:designPreview` fixture at 412 × 915 (`MOOZAQ_PREVIEW=stopped|fresh MOOZAQ_PREVIEW_SIZE=phone`), which cannot reach a speaker. Not verified on hardware: the Starting card and pending mini-player while a real receiver switch is in flight, pause/resume against a live receiver, and TalkBack traversal. Evidence: ignored `compose-app/androidApp/build/validation/040-*`.
