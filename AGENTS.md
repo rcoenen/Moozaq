@@ -17,6 +17,8 @@ Use Bedroom speaker for playback only when explicitly requested. Do not use Offi
 
 ## Repository map
 
+- `compose-app/`: next Kotlin / Compose Multiplatform UI, shared Android library target, desktop app and private Python engine bridge. See its README for build commands; preserve `mac-spike` as the working reference.
+
 - `mac-spike/app.py`: native Tk user interface; UI updates belong on the main thread.
 - `mac-spike/engine.py`: Cast discovery, media state, extraction jobs and local media delivery.
 - `mac-spike/test_engine.py`: silent protocol, input and control-readiness regression tests.
@@ -52,6 +54,8 @@ Use tests appropriate to the change. Mock race conditions, timeouts, stale state
 
 ## Implementation standards
 
+- Apply the product-wide intent → pending → confirmed UI rule in `docs/playback-control-requirements.md` to all asynchronous controls: hold requested values, show local pending colour plus text, confirm from fresh authoritative state, and surface failure without silent rollback. Keep unrelated playback status unchanged.
+
 - Keep blocking extraction, downloads, discovery and receiver operations off the UI thread.
 - Reconnection reads receiver state; it must not load media, restore old volume or seek to cached phone position.
 - A connected control socket is not a synchronized media session. Confirm actual state changes and surface uncertainty/timeouts.
@@ -64,3 +68,8 @@ Use tests appropriate to the change. Mock race conditions, timeouts, stale state
 ## Current evidence
 
 A short direct-URL test of the first mix played audibly on Bedroom speaker without Premium, cookies or a Mac media relay. Mac relay playback and seeking were observed in receiver state. Complete cache playback, all-six-source coverage, three-hour reliability and Android rejoining are not yet established. A stop/readiness failure prompted regression coverage and a receiver-shutdown fallback. Consult `docs/spike-results.md` for details rather than treating this summary as a permanent guarantee.
+
+
+### Group playback follow-up (October 16, 2026)
+
+All four All speakers members were audibly confirmed after fixing implicit receiver launches from diagnostic status requests. Always install `install_passive_status` before starting main/member Cast connections: the library's normal `update_status()` can launch an app when the media channel is missing. Keep reconnect/monitoring read-only. Last individually confirmed volumes were 50% for all four, but never apply remembered volumes on reconnect. This is one successful direct-route session, not repeatability or three-hour proof; see `docs/spike-results.md`.

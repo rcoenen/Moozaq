@@ -56,3 +56,34 @@ class LoadConfirmation(unittest.TestCase):
                 self.lab.preflight_direct('https://example.test/audio')
         self.cast.assert_not_called()
         self.cast.media_controller.play_media.assert_not_called()
+
+    def test_interrupted_switch_waits_for_requested_playing(self):
+        self.media.content_id = 'new'
+        self.media.player_state = 'IDLE'
+        self.media.idle_reason = 'INTERRUPTED'
+        updates = iter([('BUFFERING', None), ('PLAYING', None)])
+        def advance(_timeout):
+            self.media.player_state, self.media.idle_reason = next(updates)
+        self.lab.media_updated = Mock()
+        self.lab.media_updated.wait.side_effect = advance
+        self.lab.confirm_loaded_media(self.cast, 'new', 0, timeout=.1)
+        self.assertEqual(self.lab.media_updated.wait.call_count, 2)
+        self.cast.media_controller.play_media.assert_not_called()
+
+    def test_persistent_interruption_times_out_without_retry(self):
+        self.media.content_id = 'new'
+        self.media.player_state = 'IDLE'
+        self.media.idle_reason = 'INTERRUPTED'
+        with self.assertRaisesRegex(RuntimeError, 'did not confirm'):
+            self.lab.confirm_loaded_media(self.cast, 'new', 0, timeout=.01)
+        self.cast.media_controller.play_media.assert_not_called()
+
+    def test_stop_cancels_interrupted_load_wait(self):
+        self.media.content_id = 'new'
+        self.media.player_state = 'IDLE'
+        self.media.idle_reason = 'INTERRUPTED'
+        self.lab.media_updated = Mock()
+        self.lab.media_updated.wait.side_effect = lambda _: setattr(self.lab, 'generation', 1)
+        with self.assertRaisesRegex(RuntimeError, 'cancelled'):
+            self.lab.confirm_loaded_media(self.cast, 'new', 0, timeout=.1)
+        self.cast.media_controller.play_media.assert_not_called()

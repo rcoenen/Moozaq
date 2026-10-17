@@ -13,3 +13,7 @@ The brief is a starting point, not a fixed specification. Later explicit decisio
 [Android prototype and test instructions](android-spike/README.md). Includes the six starter links, native Cast controls, receiver-state sync, a local test-audio server, and an exportable hardware-test checklist. Real Nest playback remains to be tested.
 
 [Mac Cast Lab](mac-spike/README.md) compares direct YouTube audio handoff, a Mac relay, and cached-file playback. Launch `mac-spike/Moozaq Cast Lab.app`.
+
+## Kotlin / Compose app
+
+[Next-generation Mac app](compose-app/README.md): shared Kotlin/Compose browser and player, with a private bridge to the Python Cast engine. Run `./compose-app/Launch.command`. The Python reference is preserved. Shared UI compiles for Android; its native Cast adapter is still to come.

@@ -4,6 +4,7 @@ import json
 import io
 import queue
 import threading
+import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from engine import Lab, STARTERS, DATA, fetch_preview, youtube_url, receiver_preview
@@ -48,6 +49,13 @@ class App:
         self.root.minsize(800, 680)
         self.connection_pending = threading.Event()
         self.rejoin_speaker = rejoin_speaker
+        self.retry_at = 0.0
+        self.retry_delay = 5
+        self.preferred_device = None
+        try:
+            self.preferred_device = json.loads((DATA / 'preferences.json').read_text()).get('speaker_id')
+        except (OSError, ValueError, AttributeError):
+            pass
         self.lab = Lab()
         self.jobs = queue.Queue()
         self.previews = queue.Queue()
@@ -90,8 +98,9 @@ class App:
         device_box.pack(fill='x', pady=8)
         self.device_picker = ttk.Combobox(device_box, textvariable=self.device, state='readonly', width=35)
         self.device_picker.pack(side='left', padx=(0, 8))
-        self.add_button(device_box, 'Connect / rejoin', self.connect, side='left')
-        self.add_button(device_box, 'Disconnect remote', lambda: self.work('Disconnecting remote', self.lab.detach), side='left')
+        self.device_picker.bind('<<ComboboxSelected>>', self.select_speaker)
+        self.actions.append(self.device_picker)
+        ttk.Label(device_box, text='Connects automatically').pack(side='left')
 
 
         notebook = ttk.Notebook(page)
@@ -342,6 +351,36 @@ class App:
             self.message.set('Select a saved mix first.'); return
         self.work('Resolving YouTube audio', lambda: self.lab.resolve(value))
 
+    def select_speaker(self, event=None):
+        self.preferred_device = self.device_ids.get(self.device.get())
+        self.retry_at = 0
+        self.retry_delay = 5
+        self.rejoin_speaker = None
+        if self.preferred_device:
+            try:
+                (DATA / 'preferences.json').write_text(json.dumps({'speaker_id': self.preferred_device}))
+            except OSError:
+                self.message.set('Speaker selected; could not save preference.')
+            self.connect()
+
+    def maintain_connection(self, status):
+        if self.busy or self.connection_pending.is_set():
+            return
+        target = self.device_ids.get(self.device.get())
+        if not target:
+            return
+        if status.get('connected') and self.lab.selected_id == target:
+            self.retry_at = 0
+            self.retry_delay = 5
+            return
+        now = time.monotonic()
+        # Give the Cast library a chance to recover its existing socket first.
+        if self.lab.selected_id == target and self.retry_at == 0:
+            self.retry_at = now + self.retry_delay
+            return
+        if now >= self.retry_at:
+            self.connect()
+
     def connect(self):
         target = self.device_ids.get(self.device.get())
         if not target:
@@ -353,6 +392,12 @@ class App:
         def rejoin():
             try:
                 self.lab.connect(target)
+                self.retry_delay = 5
+                self.retry_at = 0
+            except Exception:
+                self.retry_at = time.monotonic() + self.retry_delay
+                self.retry_delay = min(30, self.retry_delay * 2)
+                raise
             finally:
                 self.connection_pending.clear()
         self.work('Rejoining receiver', rejoin)
@@ -518,20 +563,20 @@ class App:
             devices = self.lab.devices()
             self.device_ids = {name + ' · ' + (model or 'Cast'): uid for uid, name, model in devices}
             self.device_picker['values'] = list(self.device_ids)
-            if self.rejoin_speaker:
-                target = next((key for key in self.device_ids
-                               if key.split(' · ')[0].casefold() == self.rejoin_speaker.casefold()), None)
-                if target and not self.busy:
+            if not self.device.get():
+                target = None
+                if self.rejoin_speaker:
+                    target = next((key for key in self.device_ids
+                                   if key.split(' · ')[0].casefold() == self.rejoin_speaker.casefold()), None)
+                elif self.preferred_device:
+                    target = next((key for key, uid in self.device_ids.items() if uid == self.preferred_device), None)
+                else:
+                    target = next((key for key in self.device_ids if key.startswith('Bedroom speaker ·')), None)
+                if target:
                     self.device.set(target)
-                    self.rejoin_speaker = None
-                    self.connect()
-            elif not self.device.get():
-                bedroom = next((key for key in self.device_ids if key.startswith('Bedroom speaker ·')), None)
-                if bedroom:
-                    self.device.set(bedroom)
-                    if not self.busy:
-                        self.message.set('Bedroom speaker found. Connect, then choose a test.')
+                    self.select_speaker()
             status = self.lab.status()
+            self.maintain_connection(status)
             self.sync_receiver_track(status)
             self.update_player(status)
             if status['connected']:
@@ -541,7 +586,7 @@ class App:
                     self.lab.log('receiver', json.dumps(status))
                     self.last_recorded_status = record_key
             else:
-                self.state.set('Remote disconnected. Rejoin to read current playback; no reload is sent.\nFor relay / cached audio, leave this app running so the media server stays available.')
+                self.state.set('Remote disconnected. Reconnecting automatically; no media will be loaded.\nFor relay / cached audio, leave this app running so the media server stays available.')
             if self.lab.resolved and self.lab.resolved.get('source_url') == self.preview_source:
                 info = self.lab.resolved
                 self.source_info.set(f'{info["title"]}\n{info.get("duration", "?")} seconds · {info.get("ext")} · {info.get("acodec")} · format {info.get("format_id")}')

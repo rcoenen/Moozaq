@@ -310,8 +310,28 @@ class MediaServer:
         self.server.server_close()
 
 
+def install_passive_status(cast):
+    """GET_STATUS must never auto-launch an app, including channel callbacks."""
+    controller = cast.media_controller
+    def update_status(*, callback_function=None):
+        socket_client = cast.socket_client
+        if (not socket_client.is_connected or not socket_client.destination_id
+                or controller.namespace not in socket_client.app_namespaces):
+            if callback_function:
+                callback_function(False, None)
+            return
+        # Bypass BaseController.send_message's automatic receiver launch.
+        controller.send_message_nocheck({'type': 'GET_STATUS'}, callback_function=callback_function)
+    controller.update_status = update_status
+
+
+def discovered_cast_infos(browser):
+    """PyChromecast retains records after removing their final usable service."""
+    return [info for info in list(browser.devices.values()) if getattr(info, 'services', True)]
+
+
 class Lab:
-    def __init__(self):
+    def __init__(self, known_hosts=None):
         DATA.mkdir(exist_ok=True)
         self.events = []
         self.lock = threading.RLock()
@@ -329,7 +349,8 @@ class Lab:
         self.run_id = time.strftime('%Y%m%d-%H%M%S')
         self.event_file = DATA / f'events-{self.run_id}.jsonl'
         self.zconf = zeroconf.Zeroconf()
-        self.browser = pychromecast.CastBrowser(pychromecast.SimpleCastListener(lambda *_: None), self.zconf)
+        self.browser = pychromecast.CastBrowser(pychromecast.SimpleCastListener(lambda *_: None), self.zconf,
+                                               known_hosts=known_hosts)
         self.browser.start_discovery()
         self.media = MediaServer(self.log)
         self.log('ready', 'No cookies or account credentials used. Playback requires an explicit test action.')
@@ -343,17 +364,18 @@ class Lab:
                 out.write(json.dumps(event) + '\n')
 
     def devices(self):
-        return sorted([(str(key), value.friendly_name, value.model_name) for key, value in list(self.browser.devices.items())], key=lambda d: d[1])
+        return sorted([(str(value.uuid), value.friendly_name, value.model_name) for value in discovered_cast_infos(self.browser)], key=lambda d: d[1])
 
     def connect(self, device_id):
         if self.cast and str(self.cast.cast_info.uuid) == device_id and self.cast.socket_client.is_connected:
             return
         self.detach()
-        info = next((value for key, value in list(self.browser.devices.items()) if str(key) == device_id), None)
+        info = next((value for value in discovered_cast_infos(self.browser) if str(value.uuid) == device_id), None)
         if info is None:
             raise ValueError('Speaker no longer discovered. Wait a few seconds and refresh.')
         self.selected_id = device_id
         cast = pychromecast.get_chromecast_from_cast_info(info, self.zconf)
+        install_passive_status(cast)
         try:
             cast.wait(timeout=15)
         except Exception:
@@ -366,10 +388,10 @@ class Lab:
 
     def new_media_status(self, status):
         self.media_updated.set()
-        self.log('media-status', f'{status.player_state} · position {status.current_time} · idle {status.idle_reason}')
+        self.log('media-status', f'target={getattr(self, "selected_id", None)} · {status.player_state} · position {status.current_time} · idle {status.idle_reason}')
 
     def load_media_failed(self, queue_item_id, error_code):
-        self.log('cast-load-failed', f'Receiver rejected media: queue {queue_item_id}, code {error_code}')
+        self.log('cast-load-failed', f'target={getattr(self, "selected_id", None)} · Receiver rejected media: queue {queue_item_id}, code {error_code}')
 
     def detach(self):
         if self.cast:
@@ -586,7 +608,10 @@ class Lab:
                 if media.player_state == 'PLAYING':
                     self.log('load-confirmed', 'Receiver confirms the requested media is PLAYING.')
                     return
-                if media.player_state == 'IDLE' and media.idle_reason in ('ERROR', 'CANCELLED', 'INTERRUPTED'):
+                # During replacement Nest can report INTERRUPTED with the new
+                # content ID before BUFFERING -> PLAYING. Keep observing the
+                # same load; never retry or treat interruption as success.
+                if media.player_state == 'IDLE' and media.idle_reason in ('ERROR', 'CANCELLED'):
                     raise RuntimeError('Nest could not play the selected stream (' + media.idle_reason + '). No automatic retry was started.')
             self.media_updated.wait(min(0.25, max(0, deadline - time.monotonic())))
             self.media_updated.clear()
@@ -644,7 +669,7 @@ class Lab:
         if mode == 'direct':
             self.preflight_direct(media_url)
         self.mode = mode
-        self.log('cast-load', f'{mode} · {title} · start volume {round(volume * 100)}%; waiting for receiver evidence')
+        self.log('cast-load', f'target={getattr(self, "selected_id", None)} · {mode} · {title} · start volume {round(volume * 100)}%; waiting for receiver evidence')
         media_info = {'duration': duration} if duration else {}
         if mode != 'tone':
             media_info['customData'] = {'moozaq': {
