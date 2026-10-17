@@ -1,6 +1,6 @@
 # Moozaq current direction
 
-Updated October 16, 2026.
+Updated October 17, 2026.
 
 ## How to use the brief
 
@@ -232,3 +232,9 @@ The owner supplied the Android design handoff and asked for the phone UI to foll
 The phone path and the desktop path share catalog, `PlayerStore`, confirmation rules and tokens but not layout: above 600 dp the existing desktop screen is unchanged. Every pending state still ends on fresh receiver state, never on a simulated timer. Two honest deviations are recorded in `docs/spike-results.md`: the Cast button is our own vector opening the Cast to sheet rather than the SDK `MediaRouteButton`, because Moozaq owns and confirms routing, and a pending Stop keeps a "Stopping…" label the handoff does not specify.
 
 The owner's open questions were left open rather than guessed: no Stop casting inside Cast to, no group-volume scaling decision, device order stays as the SDK returns it, and predictive back uses a plain collapse.
+
+### Public website (2026-10-17)
+
+The marketing site is live at https://moozaq.com. It is the Astro project in `website/`, deployed as the Cloudflare Worker `moozaq` with Workers Static Assets. It is not Cloudflare Pages, Netlify, or a Git-connected build. This repository has no GitHub remote, so the next update is `npm run deploy` from `website/`. That publishes a new version of the same Worker. The custom domain, the single proxied Worker DNS record, the absence of `www`, and Always Use HTTPS are already in place. A content change must not redo them.
+
+The site must say that Moozaq is free, open source, and has no ads, accounts, or subscriptions. That supersedes the design brief's earlier ban on "free forever" language. Download buttons stay placeholders in `website/src/data/site.ts` until GitHub release URLs exist. `docs/website-design-brief.md` remains the visual reference. The commands and the things not to touch are in `website/README.md`.

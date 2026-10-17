@@ -1,0 +1,205 @@
+---
+import Base from "../layouts/Base.astro";
+import Phone from "../components/Phone.astro";
+import Poster from "../components/Poster.astro";
+import { art, downloads, heroMixes, longMixes, moods } from "../data/site";
+
+const featured = longMixes[0];
+const browseArt = art(moods[1].mixes[0].id);
+const browseArt2 = art(moods[0].mixes[0].id);
+---
+
+<Base title="Moozaq — Set the mood. Let it play.">
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="wordmark" href="#content">
+        <img src="/brand/wordmark-navy.svg" alt="Moozaq" width="420" height="120" />
+      </a>
+      <nav class="nav" aria-label="Page">
+        <a href="#moods">The moods</a>
+        <a href="#playing">How it works</a>
+        <a href="#speakers">Your speakers</a>
+      </nav>
+      <a class="btn header-download" href={downloads.android}><span class="wide-label">Get Moozaq for Android</span><span class="short-label">Download</span></a>
+    </div>
+  </header>
+
+  <main id="content">
+    <section class="wrap hero">
+      <div class="hero-copy">
+        <h1>Set the mood.<br />Let it play.</h1>
+        <p class="promise">Free. Open source. No ads.<br />No accounts. No subscriptions.</p>
+        <p class="lede">
+          Long-form music mixes for whatever you're getting into. Choose a mood, play it on your home speakers, and make yourself at home.
+        </p>
+        <div class="hero-actions">
+          <a class="btn" href={downloads.android}>Get Moozaq for Android</a>
+          <a class="text-link" href="#moods">Explore the moods</a>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="shot shot-a"><img src={art(heroMixes[0].id)} alt="" width="1280" height="720" /></div>
+        <div class="shot shot-b"><img src={art(heroMixes[1].id)} alt="" width="1280" height="720" /></div>
+        <div class="shot shot-c"><img src={art(heroMixes[2].id)} alt="" width="1280" height="720" /></div>
+      </div>
+    </section>
+
+    <section class="section moods" id="moods">
+      <div class="wrap mood-layout">
+        <div>
+          <h2>What does today feel like?</h2>
+          <div class="mood-list" role="radiogroup" aria-label="Moods">
+            {
+              moods.map((mood, index) => (
+                <label>
+                  <input type="radio" name="mood" value={mood.id} checked={index === 0} />
+                  <span class="mood-name">{mood.name}</span>
+                  <span class="mood-line">{mood.line}</span>
+                </label>
+              ))
+            }
+          </div>
+        </div>
+        <div class="mood-stage">
+          {
+            moods.map((mood) => (
+              <div class:list={["mood-panel", `panel-${mood.id}`]}>
+                <p class="panel-line">{mood.line}</p>
+                <div class="poster-row">
+                  {mood.mixes.map((mix) => (
+                    <Poster mix={mix} />
+                  ))}
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="length">
+      <div class="wrap hours">
+        <div class="hours-copy">
+          <h2>Long mixes. Less choosing.</h2>
+          <p class="section-intro">
+            A Moozaq mix is built to stay on. Put something on for the whole morning, the evening, or a long stretch of work.
+          </p>
+          <p class="duration">{featured.duration.replace(" min", " minutes").replace(" h", " hours")}</p>
+          <p class="duration-name">{featured.label}</p>
+          <p class="poster-by">{featured.creator}</p>
+          <ul class="also">
+            <li>{longMixes[1].duration}. {longMixes[1].label}.</li>
+            <li>{longMixes[2].duration}. {longMixes[2].label}.</li>
+          </ul>
+        </div>
+        <Poster mix={featured} />
+      </div>
+    </section>
+
+    <section class="section" id="playing">
+      <div class="wrap">
+        <h2>Pick a feeling. Fill the room.</h2>
+        <p class="preview-note">Product preview. The pictures show the app. They do not play sound.</p>
+        <div class="steps">
+          <article class="step">
+            <Phone variant="browse" art={browseArt} art2={browseArt2} title="" />
+            <h3>1. Find your mood</h3>
+            <p>Start from the feeling of the moment, then choose a mix that suits it.</p>
+          </article>
+          <article class="step">
+            <Phone variant="speakers" art={browseArt} title="" />
+            <h3>2. Choose your speakers</h3>
+            <p>Pick a compatible Google Cast speaker or saved group.</p>
+          </article>
+          <article class="step">
+            <Phone art={art(featured.id)} title={featured.label} creator={featured.creator} />
+            <h3>3. Press play</h3>
+            <p>The music plays through the speakers. Your phone is the remote, not the record player.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="speakers">
+      <div class="wrap">
+        <div class="home">
+          <div>
+            <h2>At home on your home speakers.</h2>
+            <p>
+              Moozaq plays on Google Nest and compatible Google Cast speakers, with Android as your remote. Open the app when you want to choose something else, change the volume, or stop.
+            </p>
+          </div>
+          <div class="home-actions">
+            <a class="btn" href={downloads.android}>Get Moozaq for Android</a>
+            <a class="text-link" href={downloads.mac}>Download for Mac</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section faq" id="questions">
+      <div class="wrap">
+        <h2>A few practical things</h2>
+        <details open>
+          <summary>Does it cost anything?</summary>
+          <p>No. Moozaq is free and open source. No ads, no accounts, and no subscriptions.</p>
+        </details>
+        <details>
+          <summary>Do I need an account?</summary>
+          <p>No. There is no account to create, and no subscription to start.</p>
+        </details>
+        <details>
+          <summary>What kind of music will I find?</summary>
+          <p>
+            Moozaq is a home for long mixes across moods and genres, from cozy jazz and vintage lounge to psychedelic dub and more. The selection can grow over time.
+          </p>
+        </details>
+        <details>
+          <summary>How long are the mixes?</summary>
+          <p>
+            Most mixes run for at least an hour, and many are made for several hours of listening. The length is shown before you play.
+          </p>
+        </details>
+        <details>
+          <summary>Which speakers does it work with?</summary>
+          <p>
+            Moozaq's focus is Google Nest and compatible Google Cast speakers. Check the speakers you have at home before you install.
+          </p>
+        </details>
+        <details>
+          <summary>Where do the mixes come from?</summary>
+          <p>
+            Mixes are drawn from YouTube channels and videos. Moozaq shows the creator, original title, artwork and length so you can see whose mix you are playing.
+          </p>
+        </details>
+        <details>
+          <summary>Can I use it on my iPhone or Mac?</summary>
+          <p>
+            Moozaq is for Android, and a Mac download is available too. There is no iPhone app.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <section class="close">
+      <div class="wrap">
+        <a class="wordmark" href="#content">
+          <img src="/brand/wordmark-neon.svg" alt="Moozaq" width="720" height="180" />
+        </a>
+        <h2>Give your room a different feeling.</h2>
+        <p class="brand-line">Find your mood. Let it run.</p>
+        <p class="promise promise-on-dark">Free. Open source. No ads.<br />No accounts. No subscriptions.</p>
+        <a class="btn btn-light" href={downloads.android}>Get Moozaq for Android</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <a class="wordmark" href="#content">
+        <img src="/brand/wordmark-navy.svg" alt="" width="280" height="80" />
+      </a>
+      <span>Free. Open source. No ads.<br />No accounts. No subscriptions.</span>
+    </div>
+  </footer>
+</Base>

@@ -1,0 +1,27 @@
+---
+import { art, type Mix } from "../data/site";
+
+interface Props {
+  mix: Mix;
+  priority?: boolean;
+}
+const { mix, priority = false } = Astro.props;
+---
+
+<figure class="poster">
+  <div class="poster-frame">
+    <img
+      src={art(mix.id)}
+      alt=""
+      width="1280"
+      height="720"
+      loading={priority ? "eager" : "lazy"}
+      decoding="async"
+    />
+  </div>
+  <figcaption>
+    <span class="poster-label">{mix.label}</span>
+    <span class="poster-by">{mix.creator}</span>
+    <span class="poster-time">{mix.duration}</span>
+  </figcaption>
+</figure>

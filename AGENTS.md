@@ -30,6 +30,7 @@ Use Bedroom speaker for playback only when explicitly requested. Do not use Offi
 - `docs/starter-videos.md`: six owner-selected sources.
 - `docs/spike-results.md`: observed outcomes and unresolved tests.
 - `docs/playback-options.md`: source/architecture research.
+- `website/`: public marketing site for https://moozaq.com. Static Astro, deployed as the Cloudflare Worker `moozaq`. Read `website/README.md` before changing or deploying it.
 - `openspec/specs/`: durable behavior contracts for the Android Cast client; `openspec/changes/archive/` holds completed change records. Validate with `openspec validate --all --strict`.
 
 ## Development and validation
@@ -51,6 +52,15 @@ Android uses JDK 17, SDK 35 and the checked-in Gradle wrapper:
 ```
 
 The APK is `android-spike/app/build/outputs/apk/debug/app-debug.apk`. Keep SDK paths in ignored `local.properties`. Discover the current ADB endpoint with `adb devices -l`; Wi-Fi ports can change. Use an explicit device selector if both IP and mDNS transports appear.
+
+The public site is updated from `website/`, not the repository root:
+
+```sh
+cd website && npm install
+cd website && npm run deploy
+```
+
+`npm run deploy` builds and publishes a new version of the existing `moozaq` Worker. Confirm https://moozaq.com afterward. The domain, DNS record, and HTTPS redirect are already set. Do not reattach them or add `www`. Details are in `website/README.md`.
 
 Use tests appropriate to the change. Mock race conditions, timeouts, stale state and cancellation; do not write tests that start real playback. Visual QA and live hardware checks must be reported separately from builds/unit tests.
 
