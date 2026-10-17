@@ -71,6 +71,7 @@ class Bridge:
             receiver['volume'] = round(observed['volume'] * 100) if observed.get('volume') is not None else None
         elif status.get('connected'):
             receiver.update(connected=False, state='UNKNOWN', volume=None)
+        receiver.update(self.expiry_view(status, observed if synchronized else None))
         with self.lock:
             receiver = self.session_recovery.present(receiver, time.monotonic())
             recovering = self.session_recovery.recovering
@@ -86,6 +87,27 @@ class Bridge:
                 'connecting': self.connecting or bool(status.get('reconnecting')) or recovering or bool(self.target and not synchronized), 'message': self.message,
                 'group': self.group_monitor.snapshot() if self.group_monitor else None,
                 'membership': self.membership.snapshot(), 'outputs': self.outputs.snapshot()}
+
+    @staticmethod
+    def expiry_view(status, observed):
+        """Signed-link expiry for the presented session; never the URL itself."""
+        bound = not (observed and observed.get('content_key')
+                     and observed['content_key'] != status.get('content_key'))
+        expired = bool(bound and status.get('connected') and status.get('source_expired'))
+        expires_at = status.get('expires_at') if bound else None
+        view = {'source_expired': expired,
+                'expires_in': round(expires_at - time.time()) if expires_at else None}
+        if expired and status.get('state') == 'IDLE' and status.get('idle_reason') == 'ERROR':
+            # The speaker failed on the expired link (not Stop or a finished mix). Keep the
+            # mix and its position so the user can explicitly resume; monitors report IDLE
+            # rows without media.
+            view.update(state='EXPIRED', title=status.get('title'), source=status.get('source'),
+                        duration=status.get('duration'), position=status.get('resume_position'))
+        return view
+
+    def source_expired(self):
+        status = self.lab.status()
+        return bool(status.get('connected') and status.get('source_expired')), status
 
     def recovery_rows(self):
         rows = self.outputs.recovery_rows()
@@ -221,6 +243,12 @@ class Bridge:
             if monitor is None:
                 raise ValueError('Speaker group is not available.')
             self.start('Adjusting speaker volume', lambda: monitor.set_member_volume(request['member'], request['value']))
+        elif op == 'resume' and self.source_expired()[0]:
+            # Resuming would make the speaker fetch an expired link: explicit refresh instead.
+            def refresh():
+                self.lab.refresh_expired(paused=False)
+                self.transport_revision += 1
+            self.start('Refreshing expired stream link', refresh)
         elif op in ('resume', 'pause'):
             cast = self.lab.cast
             if cast is None:
@@ -250,6 +278,18 @@ class Bridge:
             value = request.get('value')
             if not isinstance(value, (int, float)) or not 0 <= value <= 864000:
                 raise ValueError('Invalid seek position.')
+            expired, status = self.source_expired()
+            if expired:
+                if status.get('state') not in ('PLAYING', 'PAUSED'):
+                    raise ValueError('The stream link expired. Press Resume to reload the mix first.')
+                paused = status.get('state') == 'PAUSED'
+                # A seek is a new fetch; reload at the target and keep the play/pause state.
+                def refresh_at():
+                    self.lab.refresh_expired(position=value, paused=paused)
+                    self.seek_revision += 1
+                    self.transport_revision += 1
+                self.start('Refreshing expired stream link', refresh_at)
+                return {'accepted': True}
             cast = self.lab.cast
             if cast is None:
                 raise ValueError('Connect to a speaker first.')

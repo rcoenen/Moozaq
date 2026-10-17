@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.*
     val recovery: String? = null,
     val connected: Boolean = false, val device: String? = null, val title: String? = null,
     val state: String? = null, val position: Double? = null, val duration: Double? = null,
-    val transport_revision: Long = 0, val seek_revision: Long = 0, val volume: Int? = null, val volume_revision: Long = 0, val source: String? = null, val mode: String? = null, val idle_reason: String? = null
+    val transport_revision: Long = 0, val seek_revision: Long = 0, val volume: Int? = null, val volume_revision: Long = 0, val source: String? = null, val mode: String? = null, val idle_reason: String? = null,
+    /** The signed stream link expired; state EXPIRED means the speaker stopped on it. */
+    val source_expired: Boolean = false, val expires_in: Double? = null
 )
 @Serializable data class Snapshot(
     val devices: List<Device> = emptyList(), val receiver: Receiver = Receiver(),
@@ -74,8 +76,14 @@ fun reconcileTransport(request: PendingTransport?, snapshot: Snapshot): PendingT
     }
 }
 data class PlayerUiState(val library: CatalogData = CatalogData(), val snapshot: Snapshot = Snapshot(), val previewId: String? = null, val error: String? = null, val pendingVolumes: Map<String, PendingVolume> = emptyMap(), val mainVolume: PendingVolume? = null, val pendingSeek: PendingSeek? = null, val transport: PendingTransport? = null, val membership: PendingMembership? = null, val outputVolumes: Map<String, PendingVolume> = emptyMap(), val destination: PendingDestination? = null, val lastPlayed: Receiver? = null)
-fun canResume(s: Snapshot) = s.receiver.connected && !s.connecting && !s.busy && s.receiver.state == "PAUSED"
-fun playbackLabel(s: Snapshot) = s.receiver.recovery ?: if(s.connecting) "Synchronizing…" else s.receiver.state?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Choose a mix to begin"
+fun canResume(s: Snapshot) = s.receiver.connected && !s.connecting && !s.busy &&
+    (s.receiver.state == "PAUSED" || (s.receiver.state == "EXPIRED" && s.receiver.source != null))
+fun playbackLabel(s: Snapshot) = s.receiver.recovery ?: if(s.connecting) "Synchronizing…" else expiryLabel(s.receiver) ?: s.receiver.state?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Choose a mix to begin"
+fun expiryLabel(r: Receiver) = when {
+    r.state == "EXPIRED" -> "Stream link expired · Resume reloads from ${clockTime(r.position)}"
+    r.source_expired && r.state == "PAUSED" -> "Paused · stream link expired, Resume refreshes it"
+    else -> null
+}
 fun canPause(s: Snapshot) = s.receiver.connected && !s.connecting && !s.busy && s.receiver.state == "PLAYING"
 fun canStart(s: Snapshot, mix: Mix) = s.receiver.connected && !s.connecting && !s.busy && !(s.receiver.source == mix.url && s.receiver.state in listOf("PLAYING", "BUFFERING"))
 fun canRequestPlay(s: Snapshot, mix: Mix) = !s.busy && s.target != null && !(s.receiver.source == mix.url && s.receiver.state in listOf("PLAYING", "BUFFERING"))

@@ -25,7 +25,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
     val s=ui.snapshot; val r=presentedReceiver(ui); val c=MaterialTheme.colorScheme
     val transport=ui.transport
     val awaiting=transport!=null && !transport.failed
-    val playing=r.state in listOf("PLAYING","PAUSED","BUFFERING") || awaiting || (r.recovery!=null && !r.title.isNullOrBlank())
+    val playing=r.state in listOf("PLAYING","PAUSED","BUFFERING","EXPIRED") || awaiting || (r.recovery!=null && !r.title.isNullOrBlank())
     val pendingMix=pendingTransportMix(transport,library)
     val known=if(playing || s.connecting) r else ui.lastPlayed
     val mix=pendingMix ?: library.find {it.url==known?.source}
@@ -50,7 +50,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
                     hasLast -> "Last played: ${ui.lastPlayed?.title}"
                     else -> "Pick a mix above to start playing${r.device?.let {" on $it"} ?: ""}"
                 }
-                Text(status + if(playing && mix!=null && ui.pendingSeek==null && !awaiting) " · ${mix.creator}" else "",style=MaterialTheme.typography.bodyMedium,color=if(transport?.failed==true || ui.pendingSeek?.failed==true) c.error else c.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
+                Text(status + if(playing && mix!=null && ui.pendingSeek==null && !awaiting) " · ${mix.creator}" else "",style=MaterialTheme.typography.bodyMedium,color=if(transport?.failed==true || ui.pendingSeek?.failed==true || (r.state=="EXPIRED" && !awaiting)) c.error else c.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
                 if(playing && pendingMix==null) SeekControl(store,ui.copy(snapshot=s.copy(receiver=r)))
                 else Spacer(Modifier.height(20.dp))
             }
@@ -65,7 +65,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
                     Button(onClick={store.command(if(canPause(s)) "pause" else "resume")},
                         enabled=!awaiting && (canPause(s)||canResume(s)),modifier=Modifier.widthIn(min=96.dp).height(40.dp),contentPadding=PaddingValues(horizontal=16.dp),
                         colors=ButtonDefaults.buttonColors(disabledContainerColor=if(awaiting) c.onSurfaceVariant else c.onSurface.copy(alpha=.12f),disabledContentColor=if(awaiting) c.surface else c.onSurface.copy(alpha=.38f))) {
-                        Text(if(awaiting) when(transport?.expected) {"PAUSED"->"Pausing…";"IDLE"->"Stopping…";else->"Starting…"} else if(!r.connected || s.connecting) "Syncing…" else if(r.state=="PLAYING") "Pause" else "Resume")
+                        Text(if(awaiting) when(transport?.expected) {"PAUSED"->"Pausing…";"IDLE"->"Stopping…";else->if(r.source_expired) "Refreshing…" else "Starting…"} else if(!r.connected || s.connecting) "Syncing…" else if(r.state=="PLAYING") "Pause" else "Resume")
                     }
                 } else if(hasLast && mix!=null) Button(onClick={store.play(mix)},enabled=ui.destination==null&&canRequestPlay(s,mix),modifier=Modifier.height(40.dp)) {
                     UiIcon(Res.drawable.ui_play_arrow,modifier=Modifier.size(22.dp));Spacer(Modifier.width(6.dp));Text("Play again")
@@ -82,7 +82,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
         Text(clockTime(drag?.toDouble() ?: request?.position ?: r.position),style=MaterialTheme.typography.labelMedium)
         Slider(value=drag ?: (request?.position ?: r.position ?: 0.0).toFloat().coerceIn(0f,duration.toFloat().coerceAtLeast(1f)),
             onValueChange={drag=it},onValueChangeFinished={drag?.let {store.seek(it.toDouble())};drag=null},valueRange=0f..duration.toFloat().coerceAtLeast(1f),
-            enabled=r.connected&&duration>0&&!s.busy&&!s.connecting&&(request==null||request.failed),colors=pendingSliderColors(request!=null,request?.failed==true),
+            enabled=r.connected&&r.state!="EXPIRED"&&duration>0&&!s.busy&&!s.connecting&&(request==null||request.failed),colors=pendingSliderColors(request!=null,request?.failed==true),
             modifier=Modifier.weight(1f).height(44.dp).semantics {contentDescription="Playback position"})
         Text(clockTime(r.duration),style=MaterialTheme.typography.labelMedium)
         if(request?.failed==true) TextButton(onClick={store.dismissSeek()},contentPadding=PaddingValues(0.dp)) {Text("Read")}

@@ -30,6 +30,7 @@ Use Bedroom speaker for playback only when explicitly requested. Do not use Offi
 - `docs/starter-videos.md`: six owner-selected sources.
 - `docs/spike-results.md`: observed outcomes and unresolved tests.
 - `docs/playback-options.md`: source/architecture research.
+- `docs/source-url-expiry.md`: signed YouTube audio URL lifetime, IP binding and expiry guards (Mac implemented, Android pending). Read before changing source resolution, Resume or seek.
 - `website/`: public marketing site for https://moozaq.com. Static Astro, deployed as the Cloudflare Worker `moozaq`. Read `website/README.md` before changing or deploying it.
 - `openspec/specs/`: durable behavior contracts for the Android Cast client; `openspec/changes/archive/` holds completed change records. Validate with `openspec validate --all --strict`.
 

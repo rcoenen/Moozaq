@@ -244,3 +244,11 @@ The site must say that Moozaq is free, open source, and has no ads, accounts, or
 The owner tried to add a second speaker to a playing session and found every checkbox inert. The cause is architectural, not cosmetic: the session runs on a plain `RouteInfo`, and Cast only exposes add/remove-member for a session already on a dynamic group, so `membership.available` is legitimately false for a single speaker. Senders cannot create a group around a running single-speaker session; native multi-speaker playback on this hardware means a saved Home-app group.
 
 0.4.1 (code 11) therefore fixes the silence rather than the physics: the sheet states the limit, a locked speaker row explains itself when tapped, and choosing a saved group while a mix plays asks for confirmation before moving the mix there. The confirmed move is the only new playback path, it loads once after the destination connects, and Stop or a newer request cancels it before any LOAD. The audible move is still unproven; a two-speaker test needs explicit authorization.
+
+### Source URL expiry guards planned for the Mac app (2026-10-17)
+
+Moozaq casts an audio-only YouTube stream that the speaker fetches directly. Its signed URL expires (6 hours in one measurement) and is IP-bound. The owner asked to track this risk; four guards are planned for the Mac app: fresh resolve with a lifetime check, tracking expiry instead of the URL, an honest "Source expired" state with an explicit Resume, and refresh before a user-initiated Resume or seek. Reconnection stays read-only; automatic mid-play URL swaps are not approved. Android is handled separately. Details and status: [source-url-expiry.md](source-url-expiry.md).
+
+### Mac source URL expiry guards implemented (2026-10-17)
+
+The Mac app now implements all four guards. Expiry is read from the receiver's own media status, not stored. A fresh link shorter than a very long mix still loads, with the risk logged, so mixes longer than about 6 hours stay playable. An expired failure shows the mix with an explicit Resume that reloads at the last position. Seek after expiry reloads at the target and keeps pause. Reconnection stays read-only. Android still needs the same guards. See [source-url-expiry.md](source-url-expiry.md).

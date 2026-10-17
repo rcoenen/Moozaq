@@ -205,6 +205,32 @@ def redacted(message):
     return re.sub(r'https?://[^\s\]\)]+', '[media URL omitted]', str(message))
 
 
+# Reusing a resolved source requires this much lifetime beyond what the load needs.
+EXPIRY_MARGIN = 600
+
+
+def url_expiry(url):
+    """Epoch seconds when a signed YouTube media URL stops working; None if unknown.
+
+    Reads only the signed `expire` parameter so callers never keep or log the URL.
+    """
+    try:
+        parsed = urlparse(url or '')
+        if parsed.scheme != 'https' or not (parsed.hostname or '').endswith('.googlevideo.com'):
+            return None
+        value = parse_qs(parsed.query).get('expire', [''])[0]
+        return int(value) if value.isdigit() else None
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def remaining_need(duration, start=0):
+    """Seconds of media a load starting at `start` still has to fetch."""
+    if not duration:
+        return 0
+    return max(0, float(duration) - float(start or 0))
+
+
 class MediaServer:
     """Only random-token media routes are exposed on the LAN; there is no control API."""
     def __init__(self, log):
@@ -345,6 +371,8 @@ class Lab:
         self.cast = None
         self.selected_id = None
         self.resolved = None
+        # Last confirmed position per content, in memory only; never the URL.
+        self.last_position = None
         self.mode = 'None'
         self.run_id = time.strftime('%Y%m%d-%H%M%S')
         self.event_file = DATA / f'events-{self.run_id}.jsonl'
@@ -387,6 +415,9 @@ class Lab:
         self.log('connected', f'{info.friendly_name}; joined existing receiver, no media loaded')
 
     def new_media_status(self, status):
+        if status.player_state in ('PLAYING', 'PAUSED') and status.content_id:
+            self.last_position = (hashlib.sha256(status.content_id.encode()).hexdigest(),
+                                  status.adjusted_current_time or status.current_time or 0)
         self.media_updated.set()
         self.log('media-status', f'target={getattr(self, "selected_id", None)} · {status.player_state} · position {status.current_time} · idle {status.idle_reason}')
 
@@ -461,7 +492,10 @@ class Lab:
         if generation != self.generation:
             raise RuntimeError('Playback cancelled by Stop.')
         if active and (not source or source == status.get('source')):
-            if status['state'] == 'PAUSED':
+            if status['state'] == 'PAUSED' and status.get('source_expired'):
+                # PLAY would make the speaker request an expired link.
+                self.refresh_expired(expected_generation=generation)
+            elif status['state'] == 'PAUSED':
                 self.command('play')
             # Already playing or buffering: do not restart or send redundant commands.
             return
@@ -508,7 +542,15 @@ class Lab:
                     'mode': self.mode, 'media_session': None}
         fingerprint, source, route = receiver_identity(media)
         metadata = getattr(media, 'media_metadata', None) or {}
+        # The receiver's own content ID carries the signed expiry, so this survives reconnects.
+        expires_at = url_expiry(getattr(media, 'content_id', None))
+        source_expired = bool(source and expires_at and time.time() >= expires_at)
+        remembered = getattr(self, 'last_position', None)
+        resume_position = (remembered[1] if remembered and remembered[0] == fingerprint
+                           else media.adjusted_current_time)
         return {'connected': cast.socket_client.is_connected, 'device': cast.cast_info.friendly_name,
+                'expires_at': expires_at, 'source_expired': source_expired,
+                'resume_position': round(resume_position or 0, 1),
                 'reconnecting': not cast.socket_client.is_connected,
                 'source': source, 'content_key': fingerprint,
                 'artwork': next((item.get('url') for item in metadata.get('images', []) if isinstance(item, dict) and item.get('url')), None),
@@ -575,11 +617,28 @@ class Lab:
         self.log('resolve-success', f'{result.get("id")} · {result.get("title")} · {result.get("format_id")} / {result.get("ext")} / {result.get("acodec")}')
         return result
 
-    def ensure_source(self, value):
+    def ensure_source(self, value, start=0):
+        """Return a source whose signed link outlives the media this load will fetch."""
         source = youtube_url(value)
-        if not self.resolved or self.resolved['source_url'] != source or time.time() - self.resolved['resolved_at'] > 600:
-            self.resolve(value)
-        return self.resolved
+        cached = self.resolved
+        if (not cached or cached['source_url'] != source or time.time() - cached['resolved_at'] > 600
+                or not self.lifetime_covers(cached, start, EXPIRY_MARGIN)):
+            cached = self.resolve(value)
+        expires_at = url_expiry(cached.get('url'))
+        if expires_at is not None and expires_at - time.time() < EXPIRY_MARGIN:
+            raise RuntimeError('YouTube issued an already-expiring stream link. No new media was loaded; try again later.')
+        if not self.lifetime_covers(cached, start):
+            # Long mixes can outlast one link. A running fetch usually continues; Resume or
+            # seek after expiry refreshes the link. Record the risk instead of refusing.
+            self.log('source-expiry-risk', f'{cached.get("id")} · link lifetime is shorter than the remaining mix')
+        return cached
+
+    @staticmethod
+    def lifetime_covers(resolved, start=0, margin=0):
+        expires_at = url_expiry(resolved.get('url'))
+        if expires_at is None:
+            return True
+        return expires_at - time.time() >= remaining_need(resolved.get('duration'), start) + margin
 
     def wait_for_cast_ready(self, cast, generation, require_receiver=False, timeout=15):
         deadline = time.monotonic() + timeout
@@ -598,15 +657,15 @@ class Lab:
                 raise RuntimeError('Speaker is reconnecting; no new media was sent. Rejoin and try again.')
             time.sleep(0.1)
 
-    def confirm_loaded_media(self, cast, media_url, generation, timeout=20):
+    def confirm_loaded_media(self, cast, media_url, generation, timeout=20, expected='PLAYING'):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if generation != self.generation or self.cast is not cast:
                 raise RuntimeError('Playback cancelled or speaker changed.')
             media = cast.media_controller.status
             if media.content_id == media_url:
-                if media.player_state == 'PLAYING':
-                    self.log('load-confirmed', 'Receiver confirms the requested media is PLAYING.')
+                if media.player_state == expected:
+                    self.log('load-confirmed', f'Receiver confirms the requested media is {expected}.')
                     return
                 # During replacement Nest can report INTERRUPTED with the new
                 # content ID before BUFFERING -> PLAYING. Keep observing the
@@ -627,7 +686,23 @@ class Lab:
         except (requests.RequestException, ValueError) as exc:
             raise RuntimeError('Direct stream is not accessible. Existing receiver playback was not replaced.') from exc
 
-    def play_test(self, mode, value, volume=0.15, expected_generation=None):
+    def refresh_expired(self, position=None, paused=False, expected_generation=None):
+        """Explicit Resume/seek on a mix whose signed link expired: resolve again and load
+        at the same position. Never called by reconnection or monitoring."""
+        generation = self.generation if expected_generation is None else expected_generation
+        status = self.status()
+        if not status.get('source_expired'):
+            raise ValueError('The current stream link has not expired; nothing to refresh.')
+        source = status.get('source')
+        if not source:
+            raise ValueError('Cannot identify the expired mix. Choose it again to play.')
+        if position is None:
+            position = status.get('resume_position') or 0
+        volume = max(0, min(1, (status.get('volume') or 15) / 100))
+        self.log('source-refresh', f'{source.rsplit("=", 1)[-1]} · reload at {round(position)}s · {"paused" if paused else "playing"}')
+        self.play_test('direct', source, volume, expected_generation=generation, start=position, autoplay=not paused)
+
+    def play_test(self, mode, value, volume=0.15, expected_generation=None, start=0, autoplay=True):
         generation = self.generation if expected_generation is None else expected_generation
         if generation != self.generation:
             raise RuntimeError('Playback cancelled by Stop.')
@@ -647,7 +722,7 @@ class Lab:
             media_url = self.media.add(entry, self.cast.cast_info.host)
             mime = entry['mime']
         else:
-            resolved = self.ensure_source(value)
+            resolved = self.ensure_source(value, start) if mode == 'direct' else self.ensure_source(value)
             title, duration = resolved['title'], resolved.get('duration')
             mime = {'m4a': 'audio/mp4', 'webm': 'audio/webm', 'mp3': 'audio/mpeg'}.get(resolved['ext'], 'application/octet-stream')
             if mode == 'direct':
@@ -688,8 +763,9 @@ class Lab:
             self.media_updated.clear()
             cast.media_controller.play_media(media_url, mime, title=title,
                 thumb=resolved.get('thumbnail') if mode != 'tone' else None,
-                stream_type='BUFFERED', media_info=media_info)
-        self.confirm_loaded_media(cast, media_url, generation)
+                stream_type='BUFFERED', media_info=media_info,
+                current_time=start or None, autoplay=autoplay)
+        self.confirm_loaded_media(cast, media_url, generation, expected='PLAYING' if autoplay else 'PAUSED')
         self.log('receiver-after-load', json.dumps(self.status()))
 
     def export(self, path, notes=''):

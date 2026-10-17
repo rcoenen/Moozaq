@@ -500,3 +500,13 @@ Verified: diagnostics record `type=RouteInfo` for every selection, and `AndroidB
 Corrected an earlier claim made during diagnosis: the receiver protocol *can* do this and this repository already does. `mac-spike/grouping.py` sends `SET_PLAYBACK_DEVICES` on `urn:x-cast:com.google.cast.multizone` with `target_platform=True`, and `docs/spike-results.md:166` records a live Mac change that created temporary group `302fdeb3-90ee-46ca-a23b-9c1ee486485e` with `failedDevices=[]` and the same application session. `compose-app/bridge/membership.py` holds the full guarded implementation. The gap is Android's missing platform-channel client, not a platform limit.
 
 No protocol code was written and no speaker was mutated. The port requires a CASTV2 platform client, capability gating, a single-shot correlated mutation, temporary-group visibility, and endpoint adoption; the endpoint handoff and one audible two-speaker run are the unproven parts.
+
+### Source URL lifetime measurement (2026-10-17)
+
+One silent metadata-only yt-dlp resolution of starter `7vy0H3ERRiA` (3.05 h) returned format 140 (m4a, `mp4a.40.2`). Its signed URL carried `expire` exactly 6.0 hours after resolution and an `ip` binding. No audio, Cast command or URL logging. One sample only. Not tested: receiver behavior when a fetch outlives expiry, Resume after a long pause, or late seeks after expiry. Guards not yet implemented. See [source-url-expiry.md](source-url-expiry.md).
+
+### Mac source URL expiry guards (2026-10-17)
+
+Implemented guards 1–4 in the Mac engine, Compose bridge and desktop player ([source-url-expiry.md](source-url-expiry.md)). Validation: 92 engine tests (18 new), 114 bridge tests (10 new) and 56 desktop Kotlin tests (6 new) pass; Python compiles; `createDistributable` succeeded. All mocked. No resolve, Cast command or audio during tests. The running app was not relaunched, so it still uses the previous bridge.
+
+Not verified on hardware: the Nest's actual `idleReason` for an expired link, `currentTime` with `autoplay=false` reporting `PAUSED`, Resume after a pause longer than the link lifetime, and late seeks after expiry. Each needs owner-authorized playback. Android is unchanged.
