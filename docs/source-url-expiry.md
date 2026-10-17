@@ -1,6 +1,8 @@
 # Source URL expiry
 
-Status: **Mac app guards implemented 2026-10-17; silent tests only.** Android guards not implemented (separate agent). No receiver has yet been observed failing on an expired link; see *Unproven* below.
+Status: **Mac app guards implemented 2026-10-17; silent tests only; hardware behavior assumed, untested.** Android guards not implemented (separate agent). No receiver has yet been observed failing on an expired link; see *Unproven* below. Hardware validation is deferred as low priority (owner decision 2026-10-17); see *Deferred hardware test plan*.
+
+Practical limit: a mix played straight through is expected to be safe up to the link lifetime (about 6 h measured), counted from when the link was fetched, **including pauses**. A long pause followed by Resume relies on the untested refresh path.
 
 ## How playback reaches the speaker
 
@@ -88,3 +90,28 @@ All mocked. No resolve, Cast command or audio during tests.
 - The real `idleReason` the Nest reports for an expired link (the guard assumes `ERROR`).
 
 Each requires audible playback and must not be run without an explicit owner request.
+
+Until tested, the guards assume: the Nest reports `IDLE`/`ERROR` for an expired link, a running fetch continues past `expire`, and a paused reload reports `PAUSED`. If any assumption is wrong, guard 3 may not trigger and the player shows a generic stream error instead.
+
+## Deferred hardware test plan (low priority)
+
+Owner decision 2026-10-17: low priority, because uninterrupted playback up to ~6 h is expected to work. Nothing below is built or run yet.
+
+YouTube links cannot be shortened (`expire` is covered by the signature; editing it breaks the link), so the test stands in for YouTube with a local fake media server.
+
+**Harness** (planned `mac-spike/tools/`):
+- Fake media server on the Mac serving a long, quiet, ffmpeg-generated test tone (original audio, not a YouTube mix) with byte-range support. The URL mimics YouTube's, with `expire` = now + 5 minutes.
+- Two expiry behaviours, since YouTube's is unknown: *reject new* (downloads in progress continue; new requests after expiry get 403) and *cut* (downloads in progress are also dropped at expiry).
+- Throttled sending, so the speaker must keep requesting data as it would for a 3-hour mix.
+- A log of every speaker request: time, byte range, response.
+- A stand-in for the YouTube lookup that issues a new 5-minute link, so the app's real Resume and seek refresh code runs end to end.
+- A test-only switch so `url_expiry()` also accepts the fake host. Off by default, set by an environment variable the packaged app never sets.
+
+**Scenarios** (each about 5–8 minutes, Bedroom speaker, low volume, explicit owner go-ahead):
+1. Play straight through expiry (*reject new*): does playback continue, and when does the speaker request more data?
+2. Same with *cut*: which `idleReason` does the Nest report?
+3. Pause before expiry, wait past it, Resume in the app: does the refresh reload at the right position?
+4. Seek after expiry, once while playing and once while paused.
+5. Reload with `autoplay=false`: does the Nest report `PAUSED`?
+
+**Not covered by the harness:** YouTube's own server behaviour (whether it drops a running download at `expire`, and whether 6 h is typical). One real check covers that: pause a real mix overnight (longer than 6 h), then Resume in the app.
