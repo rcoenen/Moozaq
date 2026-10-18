@@ -8,6 +8,8 @@ import faulthandler
 import json
 import os
 import sys
+import threading
+import time
 import types
 
 _bridge = None
@@ -88,6 +90,23 @@ def start(bridge_dir, runner):
         _bridge = server.start_bridge()
     finally:
         faulthandler.cancel_dump_traceback_later()
+    threading.Thread(target=_stack_dumps, args=(bridge_dir,), daemon=True).start()
+
+
+def _stack_dumps(bridge_dir):
+    """Debug aid: creating <bridge>/dump-stacks writes every thread's stack to stacks.log."""
+    trigger = os.path.join(bridge_dir, 'dump-stacks')
+    while _bridge is not None:
+        if os.path.exists(trigger):
+            with open(os.path.join(bridge_dir, 'stacks.log'), 'w') as out:
+                faulthandler.dump_traceback(file=out, all_threads=True)
+                # The same allowlisted snapshot the UI receives; it never carries stream URLs.
+                try:
+                    out.write('\nSNAPSHOT ' + json.dumps(_bridge.snapshot(), default=str) + '\n')
+                except Exception as exc:
+                    out.write(f'\nSNAPSHOT failed: {exc!r}\n')
+            os.remove(trigger)
+        time.sleep(1)
 
 
 def request(line):

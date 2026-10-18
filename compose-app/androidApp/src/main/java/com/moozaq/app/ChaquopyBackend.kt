@@ -7,6 +7,7 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.moozaq.BridgeBackend
 import java.io.File
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
@@ -19,6 +20,7 @@ class ChaquopyBackend(context: Context) : BridgeBackend() {
     private val runner = YtDlpRunner(app, diagnostics)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val counter = AtomicLong()
+    private val calls = Executors.newSingleThreadExecutor { Thread(it, "moozaq-bridge-requests").apply { isDaemon = true } }
     // zeroconf needs multicast; Android drops it without a lock. Held only while visible.
     private val multicast = (app.getSystemService(Context.WIFI_SERVICE) as WifiManager)
         .createMulticastLock("moozaq-cast-discovery").apply { setReferenceCounted(false) }
@@ -26,6 +28,10 @@ class ChaquopyBackend(context: Context) : BridgeBackend() {
 
     private fun start(): PyObject {
         if (!Python.isStarted()) Python.start(AndroidPlatform(app))
+        // Chaquopy exports PYTHONPATH for its own interpreter, which reads it only at startup.
+        // The bundled yt-dlp runs a different Python in a child process; inheriting this path
+        // makes it import Chaquopy's 3.13 standard library and fail ("bad magic number").
+        android.system.Os.unsetenv("PYTHONPATH")
         val dir = installBridge()
         diagnostics.event("bridge.starting", "python=${Python.getInstance().getModule("sys")["version"]}")
         val module = Python.getInstance().getModule("android_bridge")
@@ -63,7 +69,18 @@ class ChaquopyBackend(context: Context) : BridgeBackend() {
         val module = bridge.await()
         val id = counter.incrementAndGet()
         val line = buildJsonObject { put("id", id); put("op", op); fields.forEach { (k, v) -> put(k, v) } }.toString()
-        val reply = withTimeout(10_000) { runInterruptible(Dispatchers.IO) { module.callAttr("request", line).toString() } }
+        // Like the Mac's stdio loop: one request at a time, and a caller that gives up after 10 s
+        // is released even if the bridge is still busy. A Python call cannot be interrupted.
+        val result = CompletableDeferred<String>()
+        calls.execute {
+            if (result.isCompleted) return@execute
+            try { result.complete(module.callAttr("request", line).toString()) } catch (e: Throwable) { result.completeExceptionally(e) }
+        }
+        val reply = try { withTimeout(10_000) { result.await() } } catch (e: TimeoutCancellationException) {
+            result.cancel()
+            diagnostics.event("bridge.timeout", op)
+            throw IllegalStateException("Local playback engine did not answer. Try again.")
+        }
         val obj = json.parseToJsonElement(reply).jsonObject
         obj["error"]?.jsonPrimitive?.contentOrNull?.let { throw IllegalStateException(it) }
         return obj["result"] ?: JsonNull
@@ -77,6 +94,7 @@ class ChaquopyBackend(context: Context) : BridgeBackend() {
         scope.launch {
             runCatching { bridge.await().callAttr("close") }
             runner.close()
+            calls.shutdown()
             diagnostics.close()
             scope.cancel()
         }
