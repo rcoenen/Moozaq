@@ -136,6 +136,51 @@ class BridgeSafety(unittest.TestCase):
         lab.command.assert_not_called()
         lab.stop_verified.assert_not_called()
 
+    def startup_rows(self, *playing, remembered_state='IDLE'):
+        rows = [{'id': 'office', 'fresh': True, 'state': remembered_state, 'content_key': None, 'source': None}]
+        for uid in playing:
+            rows.append({'id': uid, 'fresh': True, 'state': 'PLAYING', 'content_key': 'k-' + uid,
+                         'source': 'https://www.youtube.com/watch?v=7vy0H3ERRiA', 'title': 'Mix'})
+        return rows
+
+    def startup_bridge(self, rows):
+        from types import SimpleNamespace
+        bridge, lab = self.make()
+        bridge.target = lab.selected_id = 'office'
+        ids = {r['id'] for r in rows}
+        lab.devices.return_value = [(uid, uid, 'Nest Audio') for uid in sorted(ids)]
+        lab.browser.devices = {uid: SimpleNamespace(uuid=uid, cast_type='audio', friendly_name=uid, model_name='Nest Audio', host='192.168.8.10', port=8009) for uid in ids}
+        bridge.outputs.recovery_rows = Mock(return_value=rows)
+        bridge.group_follower = Mock()
+        bridge.connect = Mock()
+        return bridge, lab
+
+    def test_restart_follows_the_one_playing_moozaq_session_without_playback_commands(self):
+        bridge, lab = self.startup_bridge(self.startup_rows('bedroom'))
+        bridge.maintain_once()
+        self.assertEqual(bridge.target, 'bedroom')
+        bridge.connect.assert_called_once()
+        lab.play_selection.assert_not_called()
+        lab.command.assert_not_called()
+        lab.stop_verified.assert_not_called()
+
+    def test_restart_does_not_guess_between_two_playing_sessions(self):
+        bridge, _ = self.startup_bridge(self.startup_rows('bedroom', 'kitchen'))
+        bridge.maintain_once()
+        self.assertEqual(bridge.target, 'office')
+        self.assertFalse(bridge.startup_follow)
+
+    def test_restart_keeps_a_remembered_remote_that_is_playing(self):
+        bridge, _ = self.startup_bridge(self.startup_rows('bedroom', remembered_state='PLAYING'))
+        bridge.maintain_once()
+        self.assertEqual(bridge.target, 'office')
+
+    def test_explicit_selection_ends_the_restart_search(self):
+        bridge, lab = self.startup_bridge(self.startup_rows('bedroom'))
+        bridge.dispatch({'op': 'select', 'device': 'office'})
+        bridge.maintain_once()
+        self.assertEqual(bridge.target, 'office')
+
     def test_volume_change_does_not_block_transport(self):
         bridge, lab = self.make()
         lab.cast = Mock(cast_type='audio')

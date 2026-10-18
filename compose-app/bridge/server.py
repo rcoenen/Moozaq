@@ -15,7 +15,7 @@ from groups import GroupMonitor
 from volume import VolumeTracker
 from seeking import SeekTracker
 from catalog import Catalog
-from following import TemporaryGroupFollower
+from following import TemporaryGroupFollower, ACTIVE
 from membership import MembershipService
 from outputs import OutputMonitor, temporary_group
 from recovery import RemotePreferences, SessionRecovery
@@ -49,6 +49,9 @@ class Bridge:
         self.remote_preferences = RemotePreferences(DATA / 'preferences.json')
         self.target = self.remote_preferences.data.get('speaker_id')
         self.session_recovery = SessionRecovery()
+        # Session following lives in memory; after a restart, look once for the mix already playing.
+        self.startup_follow = True
+        self.started_at = time.monotonic()
         self.inventory = DeviceInventory(DATA / 'known-devices.json')
 
     @property
@@ -218,7 +221,10 @@ class Bridge:
             if not self.session_recovery.last:
                 self.group_follower.step(status)
             infos = {str(i.uuid): i for i in discovered_cast_infos(self.lab.browser)}
-            replacement = self.session_recovery.step(self.target, self.recovery_rows(), time.monotonic())
+            rows = self.recovery_rows()
+            replacement = self.session_recovery.step(self.target, rows, time.monotonic())
+            if not replacement and not self.session_recovery.last:
+                replacement = self.startup_candidate(rows, time.monotonic())
             if not replacement and not self.session_recovery.last:
                 replacement = self.remote_preferences.replacement(
                     self.target, infos, bool(status.get('connected')), self.busy, time.monotonic())
@@ -239,6 +245,31 @@ class Bridge:
                 elif now >= self.retry_at:
                     self.connect()
 
+    def startup_candidate(self, rows, now):
+        """After a restart, if the remembered remote is freshly idle and exactly one other output is
+        playing a Moozaq-tagged mix, follow it. Read-only, once, within the first minute; any
+        ambiguity or explicit choice ends the search without guessing."""
+        if not self.startup_follow:
+            return None
+        if now - self.started_at > 60:
+            self.startup_follow = False
+            return None
+        current = next((r for r in rows if r['id'] == self.target and r['fresh']), None)
+        if self.target and current is None:
+            return None  # The remembered remote has not been read yet.
+        if current is not None and current['state'] in ACTIVE:
+            self.startup_follow = False  # It is playing there; nothing to find.
+            return None
+        playing = [r for r in rows if r['id'] != self.target and r['fresh'] and r['state'] in ACTIVE
+                   and r.get('content_key') and r.get('source')]
+        if not playing:
+            return None  # Other outputs may not have been read yet; keep looking until the deadline.
+        self.startup_follow = False
+        if len(playing) > 1:
+            return None
+        self.lab.log('startup-follow', f'remembered remote idle; following the one output playing a Moozaq mix ({playing[0].get("title") or "untitled"})')
+        return playing[0]['id']
+
     def dispatch(self, request):
         op = request['op']
         if op == 'catalog':
@@ -257,6 +288,7 @@ class Bridge:
                     raise ValueError('Speaker is no longer available.')
                 self.membership.explicit_selection()
                 self.session_recovery.clear()
+                self.startup_follow = False
                 self.target = target
                 self.retry_at = 0
                 self.retry_delay = 5

@@ -70,6 +70,13 @@ class CastToRenderTest {
         ),
     ))
 
+    @Test fun oneSpeakerPlaying() = render("cast-to-one", Snapshot(
+        devices = devices, target = "bedroom",
+        receiver = Receiver(connected = true, device = "Bedroom speaker", title = catalog[0].title, state = "PLAYING", source = catalog[0].url, volume = 34),
+        membership = PlaybackMembership(members = listOf("bedroom"), available = true, token = "mock"),
+        outputs = devices.map { OutputState(it.id, connected = true, state = if (it.id == "bedroom") "PLAYING" else "IDLE", volume = .3, session_id = "bedroom".takeIf { _ -> it.id == "bedroom" }) },
+    ))
+
     @Test fun nothingPlaying() = render("cast-to-idle", Snapshot(
         devices = devices, target = "bedroom",
         receiver = Receiver(connected = true, device = "Bedroom speaker", state = "IDLE", volume = 40),

@@ -29,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -224,8 +223,8 @@ fun CastToDeviceList(
     val liveLocked = playback.session && !ui.snapshot.membership.available
     val rows = pickerDevices(ui.snapshot).map { castRow(ui, playback, it) }
     val groups = rows.filter { deviceKind(it.device) == DeviceKind.GROUP }
+    // Devices keep their order; choosing one changes its look, never its place.
     val devices = rows.filter { deviceKind(it.device) != DeviceKind.GROUP }
-        .sortedByDescending { it.checked || it.pending }
     val motion = LocalExpressiveMotion.current
     LazyColumn(modifier.padding(horizontal = Dimens.ScreenMargin)) {
         item(key = "now") { CastNowPlaying(playback) }
@@ -243,18 +242,12 @@ fun CastToDeviceList(
                 }
             }
         }
-        // Chosen devices first as full pills; the rest form one segmented group (M3 Expressive list):
-        // 2dp gaps, large outer corners, small inner ones. Choosing a device morphs it into a pill.
-        val others = devices.count { !(it.checked || it.pending || it.disconnecting) }
-        var otherIndex = 0
+        // Every device is its own pill with the same gap; chosen ones fill with their volume.
         items(devices, key = { it.device.id }) { row ->
-            val active = row.checked || row.pending || row.disconnecting
-            val position = if (active) null else Segment.of(otherIndex++, others)
             CastPill(
-                store, ui, playback, row, position,
+                store, ui, playback, row,
                 onLocked = { onLocked(row.device) }, onMove = { onMove(row.device) },
-                modifier = Modifier.animateItem(placementSpec = motion.defaultSpatial())
-                    .padding(top = if (position == Segment.First || position == Segment.Only) 8.dp else 0.dp),
+                modifier = Modifier.animateItem(placementSpec = motion.defaultSpatial()),
             )
         }
         item(key = "status") { CastToStatus(store, ui, liveLocked) }
@@ -279,19 +272,12 @@ private fun CastNowPlaying(playback: PhonePlayback) {
     }
 }
 
-/** Where an unchosen device sits in the segmented group, which sets its corner radii. */
-private enum class Segment {
-    First, Middle, Last, Only;
-    companion object { fun of(index: Int, count: Int) = when { count == 1 -> Only; index == 0 -> First; index == count - 1 -> Last; else -> Middle } }
-}
-
 @Composable
 private fun CastPill(
     store: PlayerStore,
     ui: PlayerUiState,
     playback: PhonePlayback,
     row: CastRow,
-    segment: Segment?,
     onLocked: () -> Unit,
     onMove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -325,25 +311,14 @@ private fun CastPill(
     fun commit(value: Float) {
         if (row.selected) store.mainVolume(value.toDouble()) else store.outputVolume(device.id, value.toDouble())
     }
-    // Shape morph: a chosen device is a full pill; an unchosen one is a segment of its group.
-    val outer = 28.dp
-    val inner = 4.dp
-    val pill = 38.dp
-    fun corner(top: Boolean): Dp = when (segment) {
-        null -> pill
-        Segment.Only -> outer
-        Segment.First -> if (top) outer else inner
-        Segment.Last -> if (top) inner else outer
-        Segment.Middle -> inner
-    }
-    val topCorner by animateDpAsState(corner(top = true), motion.defaultSpatial())
-    val bottomCorner by animateDpAsState(corner(top = false), motion.defaultSpatial())
+    // Shape morph: a chosen device rounds into a full pill.
+    val corner by animateDpAsState(if (active) 38.dp else 28.dp, motion.defaultSpatial())
     val container by animateColorAsState(
-        if (active) colors.primaryContainer.copy(alpha = .5f) else colors.surfaceContainerHigh, motion.defaultEffects(),
+        if (active) colors.primaryContainer.copy(alpha = .5f) else colors.surfaceContainerLowest, motion.defaultEffects(),
     )
-    val shape = RoundedCornerShape(topCorner, topCorner, bottomCorner, bottomCorner)
+    val shape = RoundedCornerShape(corner)
     Box(
-        modifier.alpha(alpha).fillMaxWidth().padding(bottom = if (segment == null) 8.dp else 2.dp)
+        modifier.alpha(alpha).fillMaxWidth().padding(bottom = 8.dp)
             .height(if (active) 76.dp else 72.dp).clip(shape)
             .background(container)
             .semantics(mergeDescendants = true) {
