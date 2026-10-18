@@ -637,3 +637,7 @@ After these fixes, every step was confirmed in the bridge from fresh receiver st
 - **Stop casting**: `stop-confirmed`, IDLE/CANCELLED.
 
 A final read-only Mac snapshot showed no output playing and no temporary groups. One `SSL: BAD_LENGTH` socket write error appeared on the phone's Bedroom connection during load, the same unexplained error class as on the Mac. It did not stop the run. This report did not record whether the owner heard the audio. Not tested: membership, group volume, member volume, the main volume slider, reopening mid-mix, background behaviour, link renewal, and long sessions.
+
+#### Audible confirmation on Moozaq Py (2026-10-18, about 01:03)
+
+The owner did not hear the 00:40–00:43 run, although Bedroom reported PLAYING at 20%, unmuted, with the position advancing. That remains unexplained. With the owner next to Bedroom, a card tap in Moozaq Py started "THE LAST RUN TO ELKO" at 40%. The bridge confirmed PLAYING from 0:00, and the owner reported hearing the music. After about 30 seconds, "Stop casting" in the app gave `stop-confirmed` (IDLE/CANCELLED) at 01:03:29. This is one audible play-and-stop on Bedroom from the Python-bridge build. Pause, resume and seek were confirmed only from receiver state in the earlier run, not by ear.
