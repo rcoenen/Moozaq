@@ -54,8 +54,37 @@ def _patch_engine(engine):
         self.cancelled.set()
         _runner.cancel()
 
+    original_confirm = engine.Lab.confirm_loaded_media
+
+    def confirm_loaded_media(self, cast, media_url, generation, *args, **kwargs):
+        try:
+            return original_confirm(self, cast, media_url, generation, *args, **kwargs)
+        except RuntimeError as exc:
+            if 'could not play' in str(exc):
+                self.log('source-probe', _probe_source(media_url))
+            raise
+
     engine.Lab.run_process = run_process
     engine.Lab.cancel = cancel
+    engine.Lab.confirm_loaded_media = confirm_loaded_media
+
+
+def _probe_source(media_url):
+    """After Nest rejects a stream: how does the same link answer the phone? Never logs the URL
+    or the signed address, only the issuing client, the address family and HTTP statuses."""
+    from urllib.parse import parse_qs, urlparse
+    import requests
+    query = parse_qs(urlparse(media_url).query)
+    address = (query.get('ip') or [''])[0]
+    parts = [f"client={(query.get('c') or ['?'])[0]}",
+             'ip=' + ('IPv6' if ':' in address else 'IPv4' if '.' in address else 'none')]
+    for label, headers in (('range', {'Range': 'bytes=0-0'}), ('ordinary', {})):
+        try:
+            with requests.get(media_url, headers=headers, stream=True, timeout=10) as response:
+                parts.append(f'{label}={response.status_code}')
+        except Exception as exc:
+            parts.append(f'{label}={type(exc).__name__}')
+    return ' '.join(parts)
 
 
 def _patch_catalog(catalog):

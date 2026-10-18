@@ -19,8 +19,11 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import com.moozaq.resources.*
 
+/** Build shown beside the wordmark, e.g. "v0.6.1 (20)"; null hides it. */
+val LocalBuildLabel = staticCompositionLocalOf<String?> { null }
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable fun MoozaqApp(store: PlayerStore) {
+@Composable fun MoozaqApp(store: PlayerStore, buildLabel: String? = null) = CompositionLocalProvider(LocalBuildLabel provides buildLabel) {
     val ui by store.state.collectAsState()
     val library=remember(ui.library.mixes) { mergedCatalog(ui.library.mixes) }
     var manualReducedMotion by remember { mutableStateOf(false) }

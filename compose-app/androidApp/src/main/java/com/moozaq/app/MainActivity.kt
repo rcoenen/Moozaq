@@ -17,9 +17,10 @@ class MainActivity:ComponentActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(0xff10131a.toInt()),navigationBarStyle=SystemBarStyle.dark(0xff10131a.toInt()))
+        com.moozaq.coverCacheDir=java.io.File(cacheDir,"covers")
         backend=ChaquopyBackend(applicationContext)
         store=PlayerStore(backend,scope)
-        setContent {MoozaqApp(store)}
+        setContent {MoozaqApp(store,"v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")}
     }
     override fun onStart() {super.onStart();backend.foreground(true);polling=store.start()}
     override fun onStop() {polling?.cancel();polling=null;backend.foreground(false);super.onStop()}

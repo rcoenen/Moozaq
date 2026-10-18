@@ -11,11 +11,14 @@ import org.jetbrains.compose.resources.painterResource
 import com.moozaq.resources.*
 
 expect suspend fun loadCatalogCover(url: String): ImageBitmap?
+/** A cover already decoded in memory, so a card scrolled back into view skips the placeholder. */
+expect fun cachedCatalogCover(url: String): ImageBitmap?
 private val starterCovers = listOf(Res.drawable.mix_0, Res.drawable.mix_1, Res.drawable.mix_2, Res.drawable.mix_3, Res.drawable.mix_4, Res.drawable.mix_5)
 @Composable fun MixCover(mix: Mix?, modifier: Modifier) {
-    val bitmap by produceState<ImageBitmap?>(null, mix?.thumbnail) {
-        value = null
-        mix?.thumbnail?.let { value = loadCatalogCover(it) }
+    val bitmap by produceState(mix?.thumbnail?.let(::cachedCatalogCover), mix?.thumbnail) {
+        val url = mix?.thumbnail
+        value = url?.let(::cachedCatalogCover)
+        if (value == null && url != null) value = loadCatalogCover(url)
     }
     if(bitmap != null) Image(bitmap!!, mix?.title, modifier, contentScale=ContentScale.Crop)
     else {

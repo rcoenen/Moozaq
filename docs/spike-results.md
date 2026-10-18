@@ -641,3 +641,15 @@ A final read-only Mac snapshot showed no output playing and no temporary groups.
 #### Audible confirmation on Moozaq Py (2026-10-18, about 01:03)
 
 The owner did not hear the 00:40–00:43 run, although Bedroom reported PLAYING at 20%, unmuted, with the position advancing. That remains unexplained. With the owner next to Bedroom, a card tap in Moozaq Py started "THE LAST RUN TO ELKO" at 40%. The bridge confirmed PLAYING from 0:00, and the owner reported hearing the music. After about 30 seconds, "Stop casting" in the app gave `stop-confirmed` (IDLE/CANCELLED) at 01:03:29. This is one audible play-and-stop on Bedroom from the Python-bridge build. Pause, resume and seek were confirmed only from receiver state in the earlier run, not by ear.
+
+### Android 0.6.0 play failure, then 0.6.1 diagnostics, cover cache and build label (2026-10-18)
+
+On 0.6.0 (`com.moozaq.app`, Python bridge) the owner tapped three mixes at about 01:13. yt-dlp resolved "THE SCORPION'S LAIR" and "Midnight Fever Motel" (`Xdho5SVxEVI`) as format 140 m4a/AAC, the bridge's range preflight passed, and LOAD was sent. Bedroom answered IDLE · ERROR within about two seconds each time. The phone's yt-dlp matches the pinned 2026.08.19 checksum. From the Mac, the same two videos, resolved without a JS runtime like the phone, came from the `visionos` client and answered both a range GET (206) and an ordinary GET (200). So the cause is not established. The same video failed the same way on 2026-10-17 with the old resolver.
+
+0.6.1 (code 20) adds an Android-only probe. When Nest rejects a stream, the bridge logs a `source-probe` event: the issuing client, the signed-address family, and the phone's range and ordinary GET statuses. URLs and addresses are not logged. The next failure should show whether the link refuses ordinary fetches or is bound to an IPv6 address.
+
+0.6.1 also:
+- caches catalog covers in memory (32 MB LRU, RGB_565) and on disk (`cacheDir/covers`), with at most four downloads at a time and shared duplicate requests, so scrolling back no longer shows the grey placeholder;
+- shows `v0.6.1 (20)` beside the phone wordmark.
+
+Installed on the Pixel, not opened. Not yet observed on the phone: the probe output, the cover cache and the label.

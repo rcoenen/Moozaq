@@ -41,11 +41,13 @@ class FakeLab:
 class AndroidBridgeShimTest(unittest.TestCase):
     def setUp(self):
         self.saved = engine.Lab.run_process, engine.Lab.cancel, catalog.subprocess
+        self.saved_confirm = engine.Lab.confirm_loaded_media
         android_bridge._patch_engine(engine)
         android_bridge._patch_catalog(catalog)
 
     def tearDown(self):
         engine.Lab.run_process, engine.Lab.cancel, catalog.subprocess = self.saved
+        engine.Lab.confirm_loaded_media = self.saved_confirm
         android_bridge._runner = None
 
     def test_ytdlp_arguments_drop_interpreter_and_js_runtime(self):
@@ -87,6 +89,36 @@ class AndroidBridgeShimTest(unittest.TestCase):
         result = catalog.subprocess.run(['py', '-m', 'yt_dlp', '--flat-playlist', 'https://www.youtube.com/@x'], capture_output=True, text=True, timeout=300)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout, '')
+
+    def test_source_probe_reports_statuses_without_url_or_address(self):
+        from unittest.mock import patch, MagicMock
+        responses = []
+        def get(url, headers=None, **kwargs):
+            response = MagicMock(status_code=206 if headers else 403)
+            response.__enter__.return_value = response
+            responses.append(headers)
+            return response
+        url = 'https://rr1---sn-x.googlevideo.com/videoplayback?c=VISIONOS&ip=2001:db8::1&sig=secret'
+        with patch('requests.get', side_effect=get):
+            line = android_bridge._probe_source(url)
+        self.assertEqual(line, 'client=VISIONOS ip=IPv6 range=206 ordinary=403')
+        self.assertNotIn('secret', line)
+        self.assertNotIn('2001', line)
+
+    def test_rejected_stream_is_probed_and_still_fails(self):
+        from unittest.mock import patch
+        logged = []
+        lab = FakeLab()
+        lab.log = lambda kind, detail: logged.append((kind, detail))
+        def failing(self_, cast, url, generation, *a, **k):
+            raise RuntimeError('Nest could not play the selected stream (ERROR). No automatic retry was started.')
+        # Wrap a receiver that always rejects; tearDown restores the real method.
+        engine.Lab.confirm_loaded_media = failing
+        android_bridge._patch_engine(engine)
+        with patch.object(android_bridge, '_probe_source', return_value='client=X ip=IPv4 range=206 ordinary=200'):
+            with self.assertRaisesRegex(RuntimeError, 'could not play'):
+                engine.Lab.confirm_loaded_media(lab, None, 'https://x', 0)
+        self.assertEqual(logged, [('source-probe', 'client=X ip=IPv4 range=206 ordinary=200')])
 
     def test_request_before_start_is_an_error_reply(self):
         reply = json.loads(android_bridge.request('{"id": 1, "op": "state"}'))

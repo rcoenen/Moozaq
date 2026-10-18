@@ -102,6 +102,9 @@ private fun PhoneTopBar(playback: PhonePlayback, onOpenCast: () -> Unit, onOpenC
             Modifier.width(Dimens.LogoWidth).height(Dimens.LogoHeight),
             contentScale = ContentScale.Fit,
         )
+        LocalBuildLabel.current?.let {
+            Text(it, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+        }
         Spacer(Modifier.weight(1f))
         IconButton(
             onClick = onOpenCast,

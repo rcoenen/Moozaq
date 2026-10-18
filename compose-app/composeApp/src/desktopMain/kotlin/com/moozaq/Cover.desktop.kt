@@ -10,6 +10,7 @@ import java.net.URI
 import java.security.MessageDigest
 
 private val artworkSlots = Semaphore(4)
+actual fun cachedCatalogCover(url: String): ImageBitmap? = null
 actual suspend fun loadCatalogCover(url: String): ImageBitmap? = withContext(Dispatchers.IO) {
     artworkSlots.withPermit {
         try {
