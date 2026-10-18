@@ -154,13 +154,13 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
     fun outputVolume(id: String, value: Double) {
         val output = state.value.snapshot.outputs.find { it.id == id } ?: return
         mutable.update { it.copy(outputVolumes=it.outputVolumes + (id to PendingVolume(value, output.volume_revision))) }
-        action { backend.outputVolume(id, value) }
+        action(blocksTransport = false) { backend.outputVolume(id, value) }
     }
     fun dismissOutputVolume(id: String) { mutable.update { it.copy(outputVolumes=it.outputVolumes - id) } }
     fun memberVolume(id: String, value: Double) {
         val member = state.value.snapshot.group?.members?.find { it.id == id } ?: return
         mutable.update { it.copy(pendingVolumes = it.pendingVolumes + (id to PendingVolume(value, member.volume_revision))) }
-        action { backend.memberVolume(id, value) }
+        action(blocksTransport = false) { backend.memberVolume(id, value) }
     }
     fun seek(position: Double) {
         mutable.update { it.copy(pendingSeek=PendingSeek(position, it.snapshot.receiver.seek_revision)) }
@@ -169,7 +169,7 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
     fun dismissSeek() { mutable.update { it.copy(pendingSeek=null) } }
     fun mainVolume(value: Double) {
         mutable.update { it.copy(mainVolume=PendingVolume(value, it.snapshot.receiver.volume_revision)) }
-        action { backend.command("volume", value) }
+        action(blocksTransport = false) { backend.command("volume", value) }
     }
     fun dismissMainVolume() { mutable.update { it.copy(mainVolume=null) } }
     fun dismissVolume(id: String) { mutable.update { it.copy(pendingVolumes = it.pendingVolumes - id) } }
@@ -264,8 +264,10 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
         }
         action { backend.command(name, value) }
     }
-    private fun action(block: suspend () -> Unit) {
-        mutable.update { it.copy(error = null, snapshot = it.snapshot.copy(busy = true)) }
+    /** Runs a backend action. Volume changes pass blocksTransport=false: they have their own
+     * pending state, so play, pause, seek and Stop stay enabled while a level is confirmed. */
+    private fun action(blocksTransport: Boolean = true, block: suspend () -> Unit) {
+        mutable.update { it.copy(error = null, snapshot = if (blocksTransport) it.snapshot.copy(busy = true) else it.snapshot) }
         scope.launch {
             try { block(); val s = backend.snapshot(); mutable.update { it.copy(snapshot = s, lastPlayed = rememberPlayback(it.lastPlayed, s.receiver), destination = reconcileDestination(it.destination, s), membership = reconcileMembership(it.membership, s), outputVolumes = reconcileOutputVolumes(it.outputVolumes, s), transport = if(it.snapshot.target == s.target) reconcileTransport(it.transport, s) else null, pendingSeek = if(it.snapshot.target == s.target) reconcileSeek(it.pendingSeek, s) else null, mainVolume = if(it.snapshot.target == s.target) reconcileMainVolume(it.mainVolume, s) else null, pendingVolumes = if(it.snapshot.target == s.target) reconcileVolumes(it.pendingVolumes, s) else emptyMap()) } }
             catch (e: Exception) { if (e is CancellationException) throw e; mutable.update { it.copy(error = e.message, destination=it.destination?.copy(failed=true), snapshot = it.snapshot.copy(busy = false)) } }

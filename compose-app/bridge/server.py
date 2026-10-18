@@ -27,6 +27,7 @@ class Bridge:
         self.lab = lab
         self.lock = threading.RLock()
         self.operation_busy = False
+        self.volume_busy = False
         self.stopping = False
         self.connecting = False
         self.message = 'Discovering speakers…'
@@ -161,6 +162,22 @@ class Bridge:
                 self.operation_busy = False
         threading.Thread(target=run, daemon=True).start()
 
+    def start_volume(self, label, action):
+        """Volume runs in its own lane: one change at a time, never blocking transport or Stop.
+        Each change keeps its own fresh-receiver confirmation."""
+        with self.lock:
+            if self.volume_busy:
+                raise ValueError('Wait for the current volume change.')
+            self.volume_busy = True
+        def run():
+            try:
+                action()
+            except Exception as exc:
+                self.message = 'Failed: ' + label.lower() + ': ' + redacted(str(exc))
+            finally:
+                self.volume_busy = False
+        threading.Thread(target=run, daemon=True).start()
+
     def connect(self):
         target = self.target
         def join():
@@ -261,12 +278,12 @@ class Bridge:
         elif op == 'dismiss_membership':
             self.membership.dismiss()
         elif op == 'output_volume':
-            self.start('Adjusting speaker volume', lambda: self.outputs.set_volume(request['device'], request['value']))
+            self.start_volume('Adjusting speaker volume', lambda: self.outputs.set_volume(request['device'], request['value']))
         elif op == 'member_volume':
             monitor = self.group_monitor
             if monitor is None:
                 raise ValueError('Speaker group is not available.')
-            self.start('Adjusting speaker volume', lambda: monitor.set_member_volume(request['member'], request['value']))
+            self.start_volume('Adjusting speaker volume', lambda: monitor.set_member_volume(request['member'], request['value']))
         elif op == 'resume' and self.link_state(self.lab.status())[0]:
             # The link expired or would run out before the mix ends: resume on a fresh link.
             generation = self.lab.generation
@@ -306,7 +323,7 @@ class Bridge:
                         self.volume_tracker = VolumeTracker(cast)
                     self.volume_tracker.set_confirmed(self.lab, value)
                 self.volume_revision += 1
-            self.start('Adjusting volume', adjust_volume)
+            self.start_volume('Adjusting volume', adjust_volume)
         elif op == 'seek':
             value = request.get('value')
             if not isinstance(value, (int, float)) or not 0 <= value <= 864000:

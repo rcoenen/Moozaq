@@ -136,6 +136,24 @@ class BridgeSafety(unittest.TestCase):
         lab.command.assert_not_called()
         lab.stop_verified.assert_not_called()
 
+    def test_volume_change_does_not_block_transport(self):
+        bridge, lab = self.make()
+        lab.cast = Mock(cast_type='audio')
+        entered, release = threading.Event(), threading.Event()
+        tracker = Mock(cast=lab.cast)
+        tracker.set_confirmed.side_effect = lambda *_: (entered.set(), release.wait(2))
+        bridge.volume_tracker = tracker
+        try:
+            bridge.dispatch({'op': 'volume', 'value': 0.3})
+            self.assertTrue(entered.wait(1))
+            self.assertFalse(bridge.busy)
+            self.assertFalse(bridge.snapshot()['busy'])
+            with self.assertRaises(ValueError):
+                bridge.dispatch({'op': 'volume', 'value': 0.4})
+            bridge.dispatch({'op': 'pause'})
+        finally:
+            release.set()
+
     def test_first_run_does_not_pick_a_speaker_by_name(self):
         from types import SimpleNamespace
         bridge, lab = self.make()
