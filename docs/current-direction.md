@@ -321,3 +321,5 @@ The owner chose the Python bridge as the Android path. `main` now builds Android
 Evidence so far: discovery of all five speakers; play, pause, resume, seek and Stop confirmed from receiver state on Bedroom; and one audible play and Stop. Speaker membership, group volume, reopen and long sessions are not yet tested on this build.
 
 The OpenSpec change `kotlin-cast-client` (a Kotlin port) is on hold. The `android-cast-recovery` and `android-route-selection` specs describe the parked SDK app, not this build.
+
+No built-in default speaker (2026-10-18). The bridge used to pick a device named "Bedroom speaker" when nothing was remembered, which only fit the owner's home. Now a first run connects to nothing until the user chooses a speaker, which is then remembered. The idle hint says to choose one, on the phone and on desktop. The `mac-spike` Tk reference app still has its own Bedroom default.

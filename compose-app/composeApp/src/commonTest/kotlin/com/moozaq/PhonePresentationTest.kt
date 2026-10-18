@@ -37,6 +37,11 @@ class PhonePresentationTest {
         assertEquals("Pick a mix to cast to Bedroom speaker", phoneIdleHint(ui, p.device))
     }
 
+    @Test fun noChosenSpeakerAsksForOneInsteadOfNamingADefault() {
+        val ui = PlayerUiState(snapshot = Snapshot(devices = listOf(bedroom), target = null))
+        assertEquals("Choose a speaker with the Cast button", phoneIdleHint(ui, phonePlayback(ui, library).device))
+    }
+
     @Test fun pausedKeepsTheSessionAndSaysPaused() {
         val ui = PlayerUiState(
             library = CatalogData(mixes = library),

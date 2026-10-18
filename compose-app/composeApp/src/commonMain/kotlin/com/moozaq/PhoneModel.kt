@@ -87,7 +87,8 @@ fun phoneMiniStatus(p: PhonePlayback): String {
 
 /** Stopped mini player hint: the last track, or the first-launch instruction. */
 fun phoneIdleHint(ui: PlayerUiState, device: String): String =
-    ui.lastPlayed?.title?.let { "Last played: $it" } ?: "Pick a mix to cast to $device"
+    if (ui.snapshot.target == null) "Choose a speaker with the Cast button"
+    else ui.lastPlayed?.title?.let { "Last played: $it" } ?: "Pick a mix to cast to $device"
 
 /** Now playing status line: "{creator} · Playing". */
 fun phoneNowStatus(p: PhonePlayback): String =

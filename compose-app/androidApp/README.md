@@ -21,7 +21,7 @@ Package: `com.moozaq.app`. APK: `androidApp/build/outputs/apk/debug/androidApp-d
 - **Entry point:** `src/main/python/android_bridge.py` starts the bridge with `server.start_bridge()` and answers requests with `server.handle_line()`, the same functions the Mac's stdio loop uses. Its only substitution is process execution: `python -m yt_dlp` calls go to the bundled youtubedl-android runtime (`YtDlpRunner`, yt-dlp 2026.08.19, checksum-pinned by `BundledExtractor`). Desktop tools such as ffmpeg are refused.
 - **Request transport:** requests run one at a time on a dedicated thread. A caller is released after 10 s even if Python is still busy, matching the Mac's stdio loop.
 - **Environment:** Chaquopy's `PYTHONPATH` is cleared after the interpreter starts, so the yt-dlp child process uses its own Python.
-- **Discovery:** a Wi-Fi multicast lock is held while the app is visible. Discovery, passive connections and recovery follow the Mac bridge rules unchanged. On a fresh install, with no remembered speaker, the bridge defaults to joining Bedroom speaker passively.
+- **Discovery:** a Wi-Fi multicast lock is held while the app is visible. Discovery, passive connections and recovery follow the Mac bridge rules unchanged. There is no built-in default speaker: on a fresh install nothing is connected until the user chooses one with the Cast button, and that choice is remembered.
 
 ## Diagnostics
 

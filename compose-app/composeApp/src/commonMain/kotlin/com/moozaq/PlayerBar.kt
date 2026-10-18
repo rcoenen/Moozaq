@@ -47,6 +47,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
                     r.recovery!=null -> r.recovery
                     awaiting -> transport?.previous?.lowercase()?.replaceFirstChar {it.uppercase()} ?: "Starting…"
                     playing -> playbackLabel(s)
+                    s.target==null -> "Choose a speaker to start playing"
                     hasLast -> "Last played: ${ui.lastPlayed?.title}"
                     else -> "Pick a mix above to start playing${r.device?.let {" on $it"} ?: ""}"
                 }

@@ -195,8 +195,8 @@ class Bridge:
             if self.busy:
                 return
             devices = self.lab.devices()
-            if not self.target:
-                self.target = next((uid for uid, name, _ in devices if name == 'Bedroom speaker'), None)
+            # No built-in default speaker: homes differ. Without a remembered remote the user
+            # chooses one; until then nothing is connected.
             status = self.lab.status()
             if not self.session_recovery.last:
                 self.group_follower.step(status)

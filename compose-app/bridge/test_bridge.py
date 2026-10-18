@@ -136,6 +136,18 @@ class BridgeSafety(unittest.TestCase):
         lab.command.assert_not_called()
         lab.stop_verified.assert_not_called()
 
+    def test_first_run_does_not_pick_a_speaker_by_name(self):
+        from types import SimpleNamespace
+        bridge, lab = self.make()
+        lab.devices.return_value = [('bedroom', 'Bedroom speaker', 'Nest Audio'), ('office', 'Office speaker', 'Nest Audio')]
+        lab.browser.devices = {uid: SimpleNamespace(uuid=uid, cast_type='audio', friendly_name=name, model_name=model)
+                               for uid, name, model in lab.devices.return_value}
+        bridge.connect = Mock()
+        bridge.maintain_once()
+        self.assertIsNone(bridge.target)
+        bridge.connect.assert_not_called()
+        lab.connect.assert_not_called()
+
     def test_busy_or_stop_prevents_recovery_selection(self):
         bridge, lab = self.make()
         bridge.target = 'old'
