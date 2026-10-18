@@ -16,6 +16,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Velocity
+import kotlinx.coroutines.launch
 import com.moozaq.resources.*
 
 /**
@@ -42,10 +53,17 @@ fun PhoneNowPlaying(
     val seekValue = seekDrag ?: seekRequest?.position?.toFloat() ?: (receiver.position ?: 0.0).toFloat()
     val volumeValue = volumeDrag ?: volumeRequest?.value?.toFloat() ?: ((receiver.volume ?: 0) / 100f)
     val stopping = awaiting == "Stopping…"
+    val swipe = rememberSwipeToClose(onCollapse)
 
-    Column(Modifier.fillMaxSize().background(colors.surfaceContainerLowest)) {
+    Column(
+        Modifier.fillMaxSize()
+            .graphicsLayer { translationY = swipe.offset }
+            .nestedScroll(swipe.connection)
+            .background(colors.surfaceContainerLowest),
+    ) {
         Row(
-            Modifier.fillMaxWidth().height(Dimens.TopAppBarHeight).padding(horizontal = 8.dp),
+            Modifier.fillMaxWidth().height(Dimens.TopAppBarHeight).padding(horizontal = 8.dp)
+                .draggable(swipe.headerDrag, Orientation.Vertical, onDragStopped = { swipe.release(it) }),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
@@ -216,4 +234,56 @@ fun canAdjustSessionVolume(ui: PlayerUiState): Boolean {
     val request = ui.mainVolume
     return s.receiver.connected && s.receiver.volume != null && !s.busy && !s.connecting &&
         !membershipPending(ui) && (request == null || request.failed)
+}
+
+/** Drag the player down to close it, like a sheet. Sliders keep their own touches; the body's
+ * scroll is used first, so the swipe only takes over once the content is at its top. */
+private class SwipeToClose(
+    private val closeDistance: Float,
+    private val scope: kotlinx.coroutines.CoroutineScope,
+    private val onClose: () -> Unit,
+) {
+    var offset by mutableFloatStateOf(0f)
+        private set
+    private var closing = false
+
+    fun drag(delta: Float): Float {
+        if (closing) return 0f
+        val next = (offset + delta).coerceAtLeast(0f)
+        val used = next - offset
+        offset = next
+        return used
+    }
+
+    fun release(velocity: Float) {
+        if (closing || offset == 0f) return
+        if (offset > closeDistance || velocity > 1800f) { closing = true; onClose() }
+        else scope.launch { animate(offset, 0f) { value, _ -> offset = value } }
+    }
+
+    val headerDrag = androidx.compose.foundation.gestures.DraggableState { drag(it) }
+
+    val connection = object : NestedScrollConnection {
+        // Dragging back up first undoes any pull before the content scrolls.
+        override fun onPreScroll(available: Offset, source: NestedScrollSource) =
+            if (available.y < 0 && offset > 0f) Offset(0f, drag(available.y)) else Offset.Zero
+
+        // A downward drag the content could not use (it is at its top) pulls the player down.
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) =
+            if (source == NestedScrollSource.UserInput && available.y > 0) Offset(0f, drag(available.y)) else Offset.Zero
+
+        override suspend fun onPreFling(available: Velocity): Velocity {
+            if (offset == 0f) return Velocity.Zero
+            release(available.y)
+            return available
+        }
+    }
+}
+
+@Composable
+private fun rememberSwipeToClose(onClose: () -> Unit): SwipeToClose {
+    val scope = rememberCoroutineScope()
+    val distance = with(LocalDensity.current) { 120.dp.toPx() }
+    val close by rememberUpdatedState(onClose)
+    return remember(distance) { SwipeToClose(distance, scope) { close() } }
 }

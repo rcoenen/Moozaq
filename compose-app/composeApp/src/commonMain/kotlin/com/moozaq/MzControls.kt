@@ -14,6 +14,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -118,19 +120,24 @@ fun MzSlider(
         }
         if (enabled) {
             Box(Modifier.fillMaxSize().pointerInput(range.start, range.endInclusive) {
+                // The slider takes only taps and sideways drags. A mostly vertical swipe that starts
+                // on it is left to the screen (scrolling, or dragging the player down to close).
                 awaitEachGesture {
                     val width = size.width.coerceAtLeast(1)
                     fun report(x: Float) = change(range.start + (x / width).coerceIn(0f, 1f) * span)
                     val down = awaitFirstDown()
-                    down.consume()
-                    report(down.position.x)
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val moved = event.changes.firstOrNull { it.id == down.id } ?: break
-                        moved.consume()
-                        if (!moved.pressed) break
-                        report(moved.position.x)
+                    val start = awaitHorizontalTouchSlopOrCancellation(down.id) { moved, _ -> moved.consume() }
+                    if (start == null) {
+                        val up = currentEvent.changes.firstOrNull { it.id == down.id }
+                        if (up != null && !up.pressed && !up.isConsumed) {
+                            up.consume()
+                            report(down.position.x)
+                            finished()
+                        }
+                        return@awaitEachGesture
                     }
+                    report(start.position.x)
+                    horizontalDrag(start.id) { moved -> moved.consume(); report(moved.position.x) }
                     finished()
                 }
             })
