@@ -1,7 +1,6 @@
 package com.moozaq
 
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.runtime.*
 import androidx.compose.ui.geometry.Offset
@@ -21,7 +20,12 @@ import kotlinx.coroutines.launch
  * anything shorter springs back.
  */
 @Stable
-class PlayerSheet(private val scope: CoroutineScope, private val commitDistance: Float, private val reducedMotion: () -> Boolean) {
+class PlayerSheet(
+    private val scope: CoroutineScope,
+    private val commitDistance: Float,
+    private val reducedMotion: () -> Boolean,
+    private val motion: () -> ExpressiveMotion,
+) {
     var height by mutableFloatStateOf(0f)
         private set
     var offset by mutableFloatStateOf(0f)
@@ -64,7 +68,8 @@ class PlayerSheet(private val scope: CoroutineScope, private val commitDistance:
     private fun settle(target: Float) {
         animation?.cancel()
         if (reducedMotion()) { offset = target; return }
-        animation = scope.launch { animate(offset, target, animationSpec = spring(stiffness = 600f)) { value, _ -> offset = value } }
+        // Expressive spatial spring, held inside the screen so an overshoot never shows Browse underneath.
+        animation = scope.launch { animate(offset, target, animationSpec = motion().defaultSpatial()) { value, _ -> offset = value.coerceIn(0f, height) } }
     }
 
     /** For a handle that does not move with the sheet, such as the mini player or a fixed layer
@@ -95,7 +100,8 @@ fun rememberPlayerSheet(height: Float, reducedMotion: Boolean): PlayerSheet {
     val scope = rememberCoroutineScope()
     val commit = with(LocalDensity.current) { 120.dp.toPx() }
     val reduced by rememberUpdatedState(reducedMotion)
-    val sheet = remember { PlayerSheet(scope, commit) { reduced } }
+    val motion by rememberUpdatedState(LocalExpressiveMotion.current)
+    val sheet = remember { PlayerSheet(scope, commit, { reduced }, { motion }) }
     SideEffect { sheet.resize(height) }
     return sheet
 }

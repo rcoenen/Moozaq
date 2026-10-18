@@ -1,5 +1,7 @@
 package com.moozaq
 
+import androidx.compose.animation.core.FiniteAnimationSpec
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -26,6 +28,23 @@ val MoozaqColors = darkColorScheme(
     onSurface=Color(0xFFE0E2EC), onSurfaceVariant=Color(0xFFBFC7D9),
     outline=Color(0xFF8991A2), outlineVariant=Color(0xFF3F4756), error=Color(0xFFFFB4AB), scrim=Color.Black,
 )
+/**
+ * M3 Expressive motion physics as Material publishes the spring tokens: spatial springs overshoot
+ * slightly for bounce; effects springs (colour, opacity) settle without it. Compose's own
+ * MotionScheme API is internal in this release, so Moozaq's custom components read these directly.
+ * Reduced motion makes every spring critically damped.
+ */
+class ExpressiveMotion(private val reduced: Boolean) {
+    private fun <T> spring(damping: Float, stiffness: Float): FiniteAnimationSpec<T> =
+        androidx.compose.animation.core.spring(if (reduced) 1f else damping, stiffness)
+    fun <T> defaultSpatial(): FiniteAnimationSpec<T> = spring(.8f, 380f)
+    fun <T> fastSpatial(): FiniteAnimationSpec<T> = spring(.6f, 800f)
+    fun <T> slowSpatial(): FiniteAnimationSpec<T> = spring(.8f, 200f)
+    fun <T> defaultEffects(): FiniteAnimationSpec<T> = spring(1f, 1600f)
+    fun <T> fastEffects(): FiniteAnimationSpec<T> = spring(1f, 3800f)
+}
+val LocalExpressiveMotion = staticCompositionLocalOf { ExpressiveMotion(reduced = false) }
+
 @Composable fun MoozaqTheme(reducedMotion: Boolean, content: @Composable () -> Unit) {
     val family=FontFamily(Font(Res.font.roboto_flex))
     fun style(size:Int,line:Int,weight:FontWeight,spacing:Double=0.0)=TextStyle(fontFamily=family,fontSize=size.sp,lineHeight=line.sp,fontWeight=weight,letterSpacing=spacing.sp)
@@ -36,7 +55,7 @@ val MoozaqColors = darkColorScheme(
         bodySmall=style(12,16,FontWeight.Normal,.4),
         labelLarge=style(14,20,FontWeight.Medium,.1), labelMedium=style(12,16,FontWeight.Medium,.5),
         labelSmall=style(12,16,FontWeight.Medium,.5),
-    )) { CompositionLocalProvider(LocalReducedMotion provides reducedMotion, content=content) }
+    )) { CompositionLocalProvider(LocalReducedMotion provides reducedMotion, LocalExpressiveMotion provides remember(reducedMotion) { ExpressiveMotion(reducedMotion) }, content=content) }
 }
 
 /** Now playing title: titleLarge at 600 per the handoff type table. */

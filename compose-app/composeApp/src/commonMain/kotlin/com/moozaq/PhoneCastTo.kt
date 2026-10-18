@@ -1,33 +1,48 @@
 package com.moozaq
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import com.moozaq.resources.*
 
 /**
- * Cast to: a modal sheet listing devices in plain rows (groups, speakers, TVs), separated by
- * thin dividers. A row shows a volume slider only while that device is part of playback or is
- * the selected destination; other rows stay compact. Checking a member joins the running group; checking a group
- * while a mix plays moves that mix there after one explicit confirmation. Individual
- * speakers cannot be added live when the session is not on a group route, and that locked
- * state now explains itself instead of doing nothing.
+ * Cast: a modal sheet in the style of Android's output switcher. The current mix sits on top,
+ * saved speaker groups are chips, and each device is a pill. A selected device's pill is its
+ * volume slider (drag sideways) with the level as a percentage; an unselected pill is a plain
+ * row with an empty circle. Checking a member joins the running group; choosing a group while a
+ * mix plays moves that mix there after one explicit confirmation. Individual speakers cannot be
+ * added live when the session is not on a group route, and that locked state explains itself.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +51,8 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var locked by remember { mutableStateOf<Device?>(null) }
     var moving by remember { mutableStateOf<Device?>(null) }
+    val s = ui.snapshot
+    val stopping = ui.transport?.expected == "IDLE"
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -44,7 +61,7 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
         scrimColor = Color.Black.copy(alpha = .32f),
         shape = RoundedCornerShape(topStart = Dimens.SheetCorner, topEnd = Dimens.SheetCorner),
         dragHandle = {
-            Box(Modifier.fillMaxWidth().height(36.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier.size(Dimens.SheetHandleWidth, Dimens.SheetHandleHeight)
                         .clip(RoundedCornerShape(2.dp))
@@ -53,19 +70,35 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
             }
         },
     ) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(0.88f)) {
-            Text(
-                "Cast to",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 12.dp),
-            )
+        Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f)) {
+            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onDismiss, modifier = Modifier.size(Dimens.TouchTarget).semantics { contentDescription = "Close" }) {
+                    UiIcon(Res.drawable.ui_expand_more, modifier = Modifier.size(28.dp), tint = colors.onSurface)
+                }
+                Spacer(Modifier.width(12.dp))
+                Text("Cast", style = MaterialTheme.typography.headlineSmall)
+            }
             CastToDeviceList(
                 store, ui, playback,
                 onLocked = { locked = it },
                 onMove = { moving = it },
                 modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.height(24.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = Dimens.ScreenMargin, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (playback.session || stopping) {
+                    TextButton(
+                        onClick = { store.command("stop") },
+                        enabled = !stopping && (s.target != null || s.busy),
+                    ) { Text(if (stopping) "Stopping…" else "Stop casting", style = MaterialTheme.typography.labelLarge) }
+                }
+                Spacer(Modifier.weight(1f))
+                Button(onClick = onDismiss, contentPadding = PaddingValues(horizontal = 28.dp, vertical = 12.dp)) {
+                    Text("Done", style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
     }
     locked?.let { device ->
@@ -107,53 +140,25 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
     }
 }
 
-/** The device rows of the Cast to sheet, grouped by kind with dividers between rows. */
-@Composable
-fun CastToDeviceList(
-    store: PlayerStore,
-    ui: PlayerUiState,
-    playback: PhonePlayback,
-    onLocked: (Device) -> Unit,
-    onMove: (Device) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    val liveLocked = playback.session && !ui.snapshot.membership.available
-    val devices = pickerDevices(ui.snapshot)
-    val sections = listOf(
-        "Speaker groups" to devices.filter { deviceKind(it) == DeviceKind.GROUP },
-        "Speakers" to devices.filter { deviceKind(it) == DeviceKind.SPEAKER },
-        "TVs and displays" to devices.filter { deviceKind(it) !in listOf(DeviceKind.GROUP, DeviceKind.SPEAKER) },
-    ).filter { it.second.isNotEmpty() }
-    LazyColumn(modifier.padding(horizontal = Dimens.ScreenMargin)) {
-        sections.forEach { (title, members) ->
-            item(key = "section-$title") {
-                Text(
-                    title,
-                    Modifier.padding(start = 8.dp, top = 16.dp, bottom = 4.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colors.onSurfaceVariant,
-                )
-            }
-            itemsIndexed(members, key = { _, device -> device.id }) { index, device ->
-                if (index > 0) HorizontalDivider(Modifier.padding(start = Dimens.TouchTarget), color = colors.outlineVariant.copy(alpha = .6f))
-                CastToRow(store, ui, playback, device, onLocked = { onLocked(device) }, onMove = { onMove(device) })
-            }
-        }
-        item(key = "status") { CastToStatus(store, ui, liveLocked) }
-    }
-}
+/** Everything a device row needs to know, shared by the group chips and the device pills. */
+private class CastRow(
+    val device: Device,
+    val checked: Boolean,
+    val selected: Boolean,
+    val destination: Boolean,
+    val groupPlaying: Boolean,
+    val liveLocked: Boolean,
+    val enabled: Boolean,
+    val pending: Boolean,
+    val failed: Boolean,
+    val disconnecting: Boolean,
+    val output: OutputState?,
+    val volume: PendingVolume?,
+    val level: Double?,
+    val detail: String,
+)
 
-@Composable
-private fun CastToRow(
-    store: PlayerStore,
-    ui: PlayerUiState,
-    playback: PhonePlayback,
-    device: Device,
-    onLocked: () -> Unit,
-    onMove: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
+private fun castRow(ui: PlayerUiState, playback: PhonePlayback, device: Device): CastRow {
     val s = ui.snapshot
     val output = s.outputs.find { it.id == device.id }
     val selected = s.target == device.id
@@ -165,26 +170,9 @@ private fun CastToRow(
     val changingMember = membershipPending(ui) && checked != (device.id in s.membership.members)
     val leaving = !destination && leavingMember(membershipPending(ui), device.id in s.membership.members, device.id in requested)
     val stopping = checked && ui.transport?.expected == "IDLE"
-    val disconnecting = leaving || stopping
     val pending = request != null || (selected && s.connecting) || changingMember || stopping
     val failed = request?.failed == true || (changingMember && membershipError(ui) != null) ||
         (stopping && ui.transport?.failed == true)
-    val foreground = if (checked) colors.onSurface else colors.onSurfaceVariant
-    val reduced = LocalReducedMotion.current
-    val fadeTransition = rememberInfiniteTransition()
-    val fadeAlpha by fadeTransition.animateFloat(
-        initialValue = .45f,
-        targetValue = .75f,
-        animationSpec = infiniteRepeatable(
-            tween(Motion.PendingPulseMs, easing = FastOutSlowInEasing),
-            RepeatMode.Reverse,
-        ),
-    )
-    val rowAlpha = when {
-        !disconnecting -> 1f
-        reduced -> .5f
-        else -> fadeAlpha
-    }
     val groupPlaying = deviceKind(device) == DeviceKind.GROUP && selected &&
         s.receiver.state in listOf("PLAYING", "PAUSED", "BUFFERING")
     val liveLocked = playback.session && !s.membership.available &&
@@ -202,90 +190,267 @@ private fun CastToRow(
         failed -> "Not confirmed"
         stopping -> "Stopping…"
         leaving -> "Disconnecting…"
-        pending -> "Pending confirmation"
+        pending -> if (checked) "Connecting…" else "Pending"
         volume?.failed == true -> "Volume not confirmed"
-        volume != null -> "Syncing volume…"
-        destination && checked -> if (playback.session) "Playing here" else "Next mix plays here"
         liveLocked && checked -> "Playing here · use a group for several speakers"
         liveLocked -> "Cannot join live · use a saved group"
         else -> outputActivity(output, s)
     }
-    var drag by remember(device.id) { mutableStateOf<Float?>(null) }
-    val current = drag ?: volume?.value?.toFloat() ?: (level ?: 0.0).toFloat()
-    // Volume belongs to devices that are playing or chosen; elsewhere it is noise.
-    val showVolume = checked || pending || disconnecting
-    // Unchosen rows only mention what matters there, such as other music or being offline.
-    val status = detail.takeUnless { !checked && !pending && it in listOf("Not playing", "Playback unconfirmed", "Reading speaker…") }
-    Column(
-        Modifier.alpha(rowAlpha * if (device.available) 1f else .5f)
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MzCheckbox(
-                checked = checked,
-                onCheckedChange = {
-                    when {
-                        groupPlaying -> store.command("stop")
-                        liveLocked -> onLocked()
-                        destination && playback.session && playback.mix != null -> onMove()
-                        destination -> store.selectDevice(device.id)
-                        else -> store.togglePlaybackDevice(device)
-                    }
-                },
-                enabled = enabled || liveLocked,
-                pending = pending,
-                contentDescription = "Cast to ${device.name}",
-                stateDescription = detail,
-            )
-            DeviceIcon(device, tint = if (checked) colors.primary else colors.onSurfaceVariant)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
-                Text(
-                    device.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = foreground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                status?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (failed || volume?.failed == true) colors.error else colors.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+    return CastRow(device, checked, selected, destination, groupPlaying, liveLocked, enabled, pending, failed,
+        leaving || stopping, output, volume, level, detail)
+}
+
+private fun toggle(store: PlayerStore, row: CastRow, playback: PhonePlayback, onLocked: () -> Unit, onMove: () -> Unit) {
+    when {
+        row.groupPlaying -> store.command("stop")
+        row.liveLocked -> onLocked()
+        row.destination && playback.session && playback.mix != null -> onMove()
+        row.destination -> store.selectDevice(row.device.id)
+        else -> store.togglePlaybackDevice(row.device)
+    }
+}
+
+/** Groups as chips, then the devices as pills, chosen ones first. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun CastToDeviceList(
+    store: PlayerStore,
+    ui: PlayerUiState,
+    playback: PhonePlayback,
+    onLocked: (Device) -> Unit,
+    onMove: (Device) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val liveLocked = playback.session && !ui.snapshot.membership.available
+    val rows = pickerDevices(ui.snapshot).map { castRow(ui, playback, it) }
+    val groups = rows.filter { deviceKind(it.device) == DeviceKind.GROUP }
+    val devices = rows.filter { deviceKind(it.device) != DeviceKind.GROUP }
+        .sortedByDescending { it.checked || it.pending }
+    val motion = LocalExpressiveMotion.current
+    LazyColumn(modifier.padding(horizontal = Dimens.ScreenMargin)) {
+        item(key = "now") { CastNowPlaying(playback) }
+        if (groups.isNotEmpty()) item(key = "groups") {
+            FlowRow(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                groups.forEach { row ->
+                    FilterChip(
+                        selected = row.checked,
+                        onClick = { toggle(store, row, playback, { onLocked(row.device) }, { onMove(row.device) }) },
+                        enabled = row.enabled || row.liveLocked,
+                        label = { Text(row.device.name, style = MaterialTheme.typography.labelLarge) },
+                        leadingIcon = { DeviceIcon(row.device, tint = LocalContentColor.current) },
+                        modifier = Modifier.height(40.dp).semantics { stateDescription = row.detail },
                     )
                 }
             }
         }
-        if (showVolume) {
-            MzSlider(
-                value = current.coerceIn(0f, 1f),
-                onValueChange = { drag = it },
-                onValueChangeFinished = {
-                    drag?.let {
-                        if (selected) store.mainVolume(it.toDouble()) else store.outputVolume(device.id, it.toDouble())
-                    }
-                    drag = null
-                },
-                // Lines up with the device name: checkbox target, icon and gap.
-                modifier = Modifier.padding(start = Dimens.TouchTarget + 36.dp, end = 8.dp),
-                enabled = !disconnecting && !(selected && membershipPending(ui)) &&
-                    canAdjustOutputVolume(s, output, selected, volume),
-                pending = volume != null && !volume.failed,
-                failed = volume?.failed == true,
-                trackHeight = Dimens.VolumeTrack,
-                thumbHeight = Dimens.VolumeThumbHeight,
-                contentDescription = "${device.name} volume",
-                stateDescription = when {
-                    volume?.failed == true -> "Not confirmed; adjust to retry"
-                    volume != null -> "Pending confirmation"
-                    level == null -> "Unavailable"
-                    else -> "Confirmed"
-                },
+        // Chosen devices first as full pills; the rest form one segmented group (M3 Expressive list):
+        // 2dp gaps, large outer corners, small inner ones. Choosing a device morphs it into a pill.
+        val others = devices.count { !(it.checked || it.pending || it.disconnecting) }
+        var otherIndex = 0
+        items(devices, key = { it.device.id }) { row ->
+            val active = row.checked || row.pending || row.disconnecting
+            val position = if (active) null else Segment.of(otherIndex++, others)
+            CastPill(
+                store, ui, playback, row, position,
+                onLocked = { onLocked(row.device) }, onMove = { onMove(row.device) },
+                modifier = Modifier.animateItem(placementSpec = motion.defaultSpatial())
+                    .padding(top = if (position == Segment.First || position == Segment.Only) 8.dp else 0.dp),
             )
         }
+        item(key = "status") { CastToStatus(store, ui, liveLocked) }
+    }
+}
+
+@Composable
+private fun CastNowPlaying(playback: PhonePlayback) {
+    val title = playback.title ?: return
+    val colors = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainerHighest)) {
+            playback.mix?.let { MixCover(it, Modifier.fillMaxSize()) }
+        }
+        Spacer(Modifier.width(16.dp))
+        Text(
+            title,
+            Modifier.weight(1f).basicMarquee(iterations = Int.MAX_VALUE),
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+        )
+    }
+}
+
+/** Where an unchosen device sits in the segmented group, which sets its corner radii. */
+private enum class Segment {
+    First, Middle, Last, Only;
+    companion object { fun of(index: Int, count: Int) = when { count == 1 -> Only; index == 0 -> First; index == count - 1 -> Last; else -> Middle } }
+}
+
+@Composable
+private fun CastPill(
+    store: PlayerStore,
+    ui: PlayerUiState,
+    playback: PhonePlayback,
+    row: CastRow,
+    segment: Segment?,
+    onLocked: () -> Unit,
+    onMove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val s = ui.snapshot
+    val device = row.device
+    val active = row.checked || row.pending || row.disconnecting
+    val reduced = LocalReducedMotion.current
+    val pulse by rememberInfiniteTransition().animateFloat(
+        .45f, .75f, infiniteRepeatable(tween(Motion.PendingPulseMs, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+    )
+    val alpha = when {
+        !device.available -> .5f
+        !row.disconnecting -> 1f
+        reduced -> .5f
+        else -> pulse
+    }
+    var drag by remember(device.id) { mutableStateOf<Float?>(null) }
+    val adjustable = active && !row.disconnecting && !(row.selected && membershipPending(ui)) &&
+        canAdjustOutputVolume(s, row.output, row.selected, row.volume)
+    val motion = LocalExpressiveMotion.current
+    val target = (row.volume?.value?.toFloat() ?: row.level?.toFloat())?.coerceIn(0f, 1f)
+    // While dragging the fill tracks the finger exactly; otherwise it eases to the confirmed level.
+    val eased by animateFloatAsState(target ?: 0f, motion.fastSpatial())
+    val fraction = drag ?: target?.let { eased }
+    val latestFraction by rememberUpdatedState(drag ?: target)
+    val onTap by rememberUpdatedState {
+        if (!row.checked && (row.enabled || row.liveLocked)) toggle(store, row, playback, onLocked, onMove)
+    }
+    fun commit(value: Float) {
+        if (row.selected) store.mainVolume(value.toDouble()) else store.outputVolume(device.id, value.toDouble())
+    }
+    // Shape morph: a chosen device is a full pill; an unchosen one is a segment of its group.
+    val outer = 28.dp
+    val inner = 4.dp
+    val pill = 38.dp
+    fun corner(top: Boolean): Dp = when (segment) {
+        null -> pill
+        Segment.Only -> outer
+        Segment.First -> if (top) outer else inner
+        Segment.Last -> if (top) inner else outer
+        Segment.Middle -> inner
+    }
+    val topCorner by animateDpAsState(corner(top = true), motion.defaultSpatial())
+    val bottomCorner by animateDpAsState(corner(top = false), motion.defaultSpatial())
+    val container by animateColorAsState(
+        if (active) colors.primaryContainer.copy(alpha = .5f) else colors.surfaceContainerHigh, motion.defaultEffects(),
+    )
+    val shape = RoundedCornerShape(topCorner, topCorner, bottomCorner, bottomCorner)
+    Box(
+        modifier.alpha(alpha).fillMaxWidth().padding(bottom = if (segment == null) 8.dp else 2.dp)
+            .height(if (active) 76.dp else 72.dp).clip(shape)
+            .background(container)
+            .semantics(mergeDescendants = true) {
+                contentDescription = device.name
+                stateDescription = if (active && fraction != null) "${(fraction * 100).toInt()}% · ${row.detail}" else row.detail
+                if (adjustable) setProgress { target -> commit(target.coerceIn(0f, 1f)); true }
+            }
+            // A tap chooses an unselected device; a sideways drag on a chosen one sets its volume.
+            // Vertical swipes are left to the list.
+            .pointerInput(device.id, adjustable) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val start = awaitHorizontalTouchSlopOrCancellation(down.id) { moved, _ -> if (adjustable) moved.consume() }
+                    if (start == null) {
+                        val up = currentEvent.changes.firstOrNull { it.id == down.id }
+                        if (up != null && !up.pressed && !up.isConsumed) { up.consume(); onTap() }
+                        return@awaitEachGesture
+                    }
+                    if (!adjustable) return@awaitEachGesture
+                    val width = size.width.coerceAtLeast(1).toFloat()
+                    // Drag relative to the current level, so touching the pill does not jump it.
+                    val origin = latestFraction ?: 0f
+                    var value = origin
+                    drag = value
+                    horizontalDrag(start.id) { moved ->
+                        moved.consume()
+                        value = (value + (moved.position.x - moved.previousPosition.x) / width).coerceIn(0f, 1f)
+                        drag = value
+                    }
+                    commit(value)
+                    drag = null
+                }
+            },
+    ) {
+        if (active && fraction != null) {
+            Box(
+                Modifier.fillMaxHeight().fillMaxWidth(fraction)
+                    .background(
+                        when {
+                            row.volume?.failed == true -> colors.error.copy(alpha = .45f)
+                            row.volume != null || drag != null -> colors.primaryContainer.copy(alpha = .8f)
+                            else -> colors.primaryContainer
+                        }
+                    ),
+            )
+        }
+        Row(Modifier.fillMaxSize().padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (active) UiIcon(Res.drawable.ui_volume_up, modifier = Modifier.size(28.dp), tint = colors.onPrimaryContainer)
+            else DeviceIcon(device, tint = colors.onSurfaceVariant)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                // Emphasized type for chosen devices guides the eye to what is playing.
+                Text(
+                    device.name,
+                    style = if (active) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+                    color = if (active) colors.onPrimaryContainer else colors.onSurface,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                val line = when {
+                    active && !row.pending && !row.failed && row.volume?.failed != true && fraction != null ->
+                        "${(fraction * 100).toInt()}%" + if (row.volume != null || drag != null) " · syncing" else ""
+                    active || row.detail !in listOf("Not playing", "Playback unconfirmed", "Reading speaker…") -> row.detail
+                    else -> null
+                }
+                line?.let {
+                    Text(
+                        it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = when {
+                            row.failed || row.volume?.failed == true -> colors.error
+                            active -> colors.onPrimaryContainer.copy(alpha = .8f)
+                            else -> colors.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+            SelectionCircle(
+                checked = row.checked,
+                pending = row.pending,
+                enabled = row.enabled || row.liveLocked,
+                description = "Cast to ${device.name}",
+                onClick = { toggle(store, row, playback, onLocked, onMove) },
+            )
+        }
+    }
+}
+
+/** The round check on the right of a device pill (Material check_circle / radio_button_unchecked). */
+@Composable
+private fun SelectionCircle(checked: Boolean, pending: Boolean, enabled: Boolean, description: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        Modifier.size(Dimens.TouchTarget)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, role = Role.Checkbox, onClickLabel = description) { onClick() }
+            .semantics { this.contentDescription = description; toggleableState = androidx.compose.ui.state.ToggleableState(checked) },
+        contentAlignment = Alignment.Center,
+    ) {
+        UiIcon(
+            if (checked) Res.drawable.ui_check_circle else Res.drawable.ui_radio_unchecked,
+            modifier = Modifier.size(28.dp),
+            tint = when {
+                !enabled -> colors.outline
+                pending -> colors.onSurfaceVariant
+                checked -> colors.onSurface
+                else -> colors.onSurfaceVariant
+            },
+        )
     }
 }
 
