@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.moozaq.resources.*
@@ -51,12 +52,28 @@ fun PhoneNowPlaying(
     // The drag is measured on this fixed layer; only the player inside it slides. Measuring inside
     // the sliding player would see half the finger's travel, because it moves under the finger.
     Box(Modifier.fillMaxSize().draggable(sheet.dragState, Orientation.Vertical, onDragStopped = { sheet.release(it) })) {
+        // Browse stays visible above the panel, dimmed as the panel rises; tapping it closes the panel.
+        val openness = if (sheet.height > 0f) (1f - sheet.offset / sheet.height).coerceIn(0f, 1f) else 0f
+        Box(
+            Modifier.fillMaxSize().graphicsLayer { alpha = openness }.background(Color.Black.copy(alpha = .32f))
+                .clickable(interactionSource = null, indication = null, onClickLabel = "Close player") { onCollapse() },
+        )
         Column(
             Modifier.fillMaxSize()
+                .padding(top = Dimens.PlayerPanelTopGap)
                 .graphicsLayer { translationY = sheet.offset }
                 .nestedScroll(sheet.connection)
-                .background(colors.surfaceContainerLowest),
+                .clip(RoundedCornerShape(topStart = Dimens.SheetCorner, topEnd = Dimens.SheetCorner))
+                .background(colors.surfaceContainerLow),
         ) {
+            // The same handle as the Cast panel.
+            Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.size(Dimens.SheetHandleWidth, Dimens.SheetHandleHeight)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(colors.onSurfaceVariant.copy(alpha = .4f)),
+                )
+            }
             Row(
                 Modifier.fillMaxWidth().height(Dimens.TopAppBarHeight).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,

@@ -62,12 +62,12 @@ class PlayerSheetGestureTest {
     private fun save(image: Image, name: String) =
         File("build/previews/$name.png").apply { parentFile.mkdirs(); writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes) }
 
-    /** Between the player's close arrow and its title: Browse shows the orange wordmark there, the open player nothing. */
+    /** Just below the strip of Browse that stays visible: Browse shows its first line of text there, the open panel empty header space. */
     private fun cornerIsDark(image: Image): Boolean {
         val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(image)
         var bright = 0
-        for (x in (80 * density).toInt() until (150 * density).toInt() step 6)
-            for (y in (24 * density).toInt() until (44 * density).toInt() step 6) {
+        for (x in (70 * density).toInt() until (130 * density).toInt() step 6)
+            for (y in (82 * density).toInt() until (96 * density).toInt() step 3) {
                 val c = bitmap.getColor(x, y)
                 if (((c shr 16) and 0xff) > 160) bright++
             }
@@ -89,7 +89,7 @@ class PlayerSheetGestureTest {
         try {
             val browse = scene.frames()
             save(browse, "sheet-1-browse")
-            assertTrue(!cornerIsDark(browse), "Browse shows the wordmark")
+            assertTrue(!cornerIsDark(browse), "Browse shows its heading")
 
             val mini = Offset(width / 2f, height - (16 + 32) * density)
             scene.swipe(mini, Offset(width / 2f, height * 0.45f))

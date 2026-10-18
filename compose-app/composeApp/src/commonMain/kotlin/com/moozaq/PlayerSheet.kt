@@ -1,6 +1,8 @@
 package com.moozaq
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.runtime.*
 import androidx.compose.ui.geometry.Offset
@@ -24,7 +26,6 @@ class PlayerSheet(
     private val scope: CoroutineScope,
     private val commitDistance: Float,
     private val reducedMotion: () -> Boolean,
-    private val motion: () -> ExpressiveMotion,
 ) {
     var height by mutableFloatStateOf(0f)
         private set
@@ -68,8 +69,8 @@ class PlayerSheet(
     private fun settle(target: Float) {
         animation?.cancel()
         if (reducedMotion()) { offset = target; return }
-        // Expressive spatial spring, held inside the screen so an overshoot never shows Browse underneath.
-        animation = scope.launch { animate(offset, target, animationSpec = motion().defaultSpatial()) { value, _ -> offset = value.coerceIn(0f, height) } }
+        // The same motion as Material's bottom sheet (the Cast panel): 300 ms, fast-out-slow-in.
+        animation = scope.launch { animate(offset, target, animationSpec = tween(300, easing = FastOutSlowInEasing)) { value, _ -> offset = value } }
     }
 
     /** For a handle that does not move with the sheet, such as the mini player or a fixed layer
@@ -100,8 +101,7 @@ fun rememberPlayerSheet(height: Float, reducedMotion: Boolean): PlayerSheet {
     val scope = rememberCoroutineScope()
     val commit = with(LocalDensity.current) { 120.dp.toPx() }
     val reduced by rememberUpdatedState(reducedMotion)
-    val motion by rememberUpdatedState(LocalExpressiveMotion.current)
-    val sheet = remember { PlayerSheet(scope, commit, { reduced }, { motion }) }
+    val sheet = remember { PlayerSheet(scope, commit) { reduced } }
     SideEffect { sheet.resize(height) }
     return sheet
 }

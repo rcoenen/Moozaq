@@ -45,6 +45,8 @@ object Dimens {
     val StopCastingCorner = 24.dp
 
     val SheetCorner = 28.dp
+    /** Browse shows above the player panel by this much, like the Cast panel. */
+    val PlayerPanelTopGap = 56.dp
     val SheetMaxHeight = 820.dp
     val SheetHandleWidth = 32.dp
     val SheetHandleHeight = 4.dp
