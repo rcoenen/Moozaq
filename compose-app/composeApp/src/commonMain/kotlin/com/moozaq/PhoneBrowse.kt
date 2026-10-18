@@ -42,6 +42,7 @@ fun PhoneBrowse(
     onOpenPlayer: () -> Unit,
     onOpenCast: () -> Unit,
     onOpenChannels: () -> Unit,
+    miniPlayerGestures: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
     val shelves = remember(library) {
@@ -83,7 +84,9 @@ fun PhoneBrowse(
             store, ui, library, playback,
             onOpenPlayer = onOpenPlayer,
             modifier = Modifier.align(Alignment.BottomCenter)
-                .padding(horizontal = Dimens.MiniPlayerSideInset, vertical = Dimens.MiniPlayerBottomInset),
+                .padding(horizontal = Dimens.MiniPlayerSideInset, vertical = Dimens.MiniPlayerBottomInset)
+                // Swiping the mini player up pulls the player open, while something is playing.
+                .then(if (playback.session) miniPlayerGestures else Modifier),
         )
     }
 }
