@@ -1,10 +1,9 @@
 package com.moozaq
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,8 +22,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
- * Cast to: a modal sheet with one card per device holding its checkbox, icon, name and
- * volume (handoff "Cast to"). Checking a member joins the running group; checking a group
+ * Cast to: a modal sheet listing devices in plain rows (groups, speakers, TVs), separated by
+ * thin dividers. A row shows a volume slider only while that device is part of playback or is
+ * the selected destination; other rows stay compact. Checking a member joins the running group; checking a group
  * while a mix plays moves that mix there after one explicit confirmation. Individual
  * speakers cannot be added live when the session is not on a group route, and that locked
  * state now explains itself instead of doing nothing.
@@ -34,10 +34,8 @@ import androidx.compose.ui.unit.dp
 fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayback, onDismiss: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val devices = pickerDevices(ui.snapshot)
     var locked by remember { mutableStateOf<Device?>(null) }
     var moving by remember { mutableStateOf<Device?>(null) }
-    val liveLocked = playback.session && !ui.snapshot.membership.available
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -61,19 +59,12 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 12.dp),
             )
-            LazyColumn(
-                modifier = Modifier.weight(1f).padding(horizontal = Dimens.ScreenMargin),
-                verticalArrangement = Arrangement.spacedBy(Dimens.DeviceCardGap),
-            ) {
-                items(devices, key = { it.id }) { device ->
-                    CastToRow(
-                        store, ui, playback, device,
-                        onLocked = { locked = device },
-                        onMove = { moving = device },
-                    )
-                }
-                item(key = "status") { CastToStatus(store, ui, liveLocked) }
-            }
+            CastToDeviceList(
+                store, ui, playback,
+                onLocked = { locked = it },
+                onMove = { moving = it },
+                modifier = Modifier.weight(1f),
+            )
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -113,6 +104,43 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
             },
             dismissButton = { TextButton(onClick = { moving = null }) { Text("Cancel") } },
         )
+    }
+}
+
+/** The device rows of the Cast to sheet, grouped by kind with dividers between rows. */
+@Composable
+fun CastToDeviceList(
+    store: PlayerStore,
+    ui: PlayerUiState,
+    playback: PhonePlayback,
+    onLocked: (Device) -> Unit,
+    onMove: (Device) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val liveLocked = playback.session && !ui.snapshot.membership.available
+    val devices = pickerDevices(ui.snapshot)
+    val sections = listOf(
+        "Speaker groups" to devices.filter { deviceKind(it) == DeviceKind.GROUP },
+        "Speakers" to devices.filter { deviceKind(it) == DeviceKind.SPEAKER },
+        "TVs and displays" to devices.filter { deviceKind(it) !in listOf(DeviceKind.GROUP, DeviceKind.SPEAKER) },
+    ).filter { it.second.isNotEmpty() }
+    LazyColumn(modifier.padding(horizontal = Dimens.ScreenMargin)) {
+        sections.forEach { (title, members) ->
+            item(key = "section-$title") {
+                Text(
+                    title,
+                    Modifier.padding(start = 8.dp, top = 16.dp, bottom = 4.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            itemsIndexed(members, key = { _, device -> device.id }) { index, device ->
+                if (index > 0) HorizontalDivider(Modifier.padding(start = Dimens.TouchTarget), color = colors.outlineVariant.copy(alpha = .6f))
+                CastToRow(store, ui, playback, device, onLocked = { onLocked(device) }, onMove = { onMove(device) })
+            }
+        }
+        item(key = "status") { CastToStatus(store, ui, liveLocked) }
     }
 }
 
@@ -177,51 +205,42 @@ private fun CastToRow(
         pending -> "Pending confirmation"
         volume?.failed == true -> "Volume not confirmed"
         volume != null -> "Syncing volume…"
-        destination && checked -> "Selected destination"
+        destination && checked -> if (playback.session) "Playing here" else "Next mix plays here"
         liveLocked && checked -> "Playing here · use a group for several speakers"
         liveLocked -> "Cannot join live · use a saved group"
         else -> outputActivity(output, s)
     }
     var drag by remember(device.id) { mutableStateOf<Float?>(null) }
     val current = drag ?: volume?.value?.toFloat() ?: (level ?: 0.0).toFloat()
-    val shape = RoundedCornerShape(Dimens.DeviceCardCorner)
-    Row(
-        Modifier.alpha(rowAlpha)
+    // Volume belongs to devices that are playing or chosen; elsewhere it is noise.
+    val showVolume = checked || pending || disconnecting
+    // Unchosen rows only mention what matters there, such as other music or being offline.
+    val status = detail.takeUnless { !checked && !pending && it in listOf("Not playing", "Playback unconfirmed", "Reading speaker…") }
+    Column(
+        Modifier.alpha(rowAlpha * if (device.available) 1f else .5f)
             .fillMaxWidth()
-            .clip(shape)
-            .background(if (checked) colors.primary.copy(alpha = .10f) else colors.surfaceContainer)
-            .border(
-                1.dp,
-                when {
-                    pending -> colors.outline
-                    checked -> colors.primary.copy(alpha = .45f)
-                    else -> Color.Transparent
-                },
-                shape,
-            )
-            .padding(start = 4.dp, end = Dimens.CardPadding, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(vertical = 4.dp),
     ) {
-        MzCheckbox(
-            checked = checked,
-            onCheckedChange = {
-                when {
-                    groupPlaying -> store.command("stop")
-                    liveLocked -> onLocked()
-                    destination && playback.session && playback.mix != null -> onMove()
-                    destination -> store.selectDevice(device.id)
-                    else -> store.togglePlaybackDevice(device)
-                }
-            },
-            enabled = enabled || liveLocked,
-            pending = pending,
-            contentDescription = "Cast to ${device.name}",
-            stateDescription = detail,
-        )
-        Column(Modifier.weight(1f)) {
-            Row(Modifier.height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-                DeviceIcon(device, tint = foreground)
-                Spacer(Modifier.width(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MzCheckbox(
+                checked = checked,
+                onCheckedChange = {
+                    when {
+                        groupPlaying -> store.command("stop")
+                        liveLocked -> onLocked()
+                        destination && playback.session && playback.mix != null -> onMove()
+                        destination -> store.selectDevice(device.id)
+                        else -> store.togglePlaybackDevice(device)
+                    }
+                },
+                enabled = enabled || liveLocked,
+                pending = pending,
+                contentDescription = "Cast to ${device.name}",
+                stateDescription = detail,
+            )
+            DeviceIcon(device, tint = if (checked) colors.primary else colors.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
                 Text(
                     device.name,
                     style = MaterialTheme.typography.bodyLarge,
@@ -229,7 +248,18 @@ private fun CastToRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                status?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (failed || volume?.failed == true) colors.error else colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
+        }
+        if (showVolume) {
             MzSlider(
                 value = current.coerceIn(0f, 1f),
                 onValueChange = { drag = it },
@@ -239,6 +269,8 @@ private fun CastToRow(
                     }
                     drag = null
                 },
+                // Lines up with the device name: checkbox target, icon and gap.
+                modifier = Modifier.padding(start = Dimens.TouchTarget + 36.dp, end = 8.dp),
                 enabled = !disconnecting && !(selected && membershipPending(ui)) &&
                     canAdjustOutputVolume(s, output, selected, volume),
                 pending = volume != null && !volume.failed,
