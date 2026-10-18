@@ -6,8 +6,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 
-class PythonBackend(root: File) : PlayerBackend {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+class PythonBackend(root: File) : BridgeBackend() {
     private val pending = ConcurrentHashMap<Long, CompletableDeferred<JsonElement>>()
     private val counter = AtomicLong()
     private val process = ProcessBuilder(
@@ -30,7 +29,7 @@ class PythonBackend(root: File) : PlayerBackend {
             finally { pending.values.forEach { it.completeExceptionally(IllegalStateException("Local playback engine disconnected. Reopen Moozaq.")) }; pending.clear() }
         }, "moozaq-engine-reader").apply { isDaemon = true; start() }
     }
-    private suspend fun request(op: String, fields: Map<String, JsonElement> = emptyMap()): JsonElement {
+    override suspend fun request(op: String, fields: Map<String, JsonElement>): JsonElement {
         val id = counter.incrementAndGet()
         val result = CompletableDeferred<JsonElement>()
         pending[id] = result
@@ -44,15 +43,5 @@ class PythonBackend(root: File) : PlayerBackend {
             return withTimeout(10000) { result.await() }
         } finally { pending.remove(id) }
     }
-    override suspend fun snapshot() = json.decodeFromJsonElement<Snapshot>(request("state"))
-    override suspend fun selectDevice(id: String) { request("select", mapOf("device" to JsonPrimitive(id))) }
-    override suspend fun play(source: String) { request("play", mapOf("source" to JsonPrimitive(source))) }
-    override suspend fun command(name: String, value: Double?) { request(name, value?.let { mapOf("value" to JsonPrimitive(it)) } ?: emptyMap()) }
-    override suspend fun outputVolume(id: String, value: Double) { request("output_volume", mapOf("device" to JsonPrimitive(id), "value" to JsonPrimitive(value))) }
-    override suspend fun memberVolume(id: String, value: Double) { request("member_volume", mapOf("member" to JsonPrimitive(id), "value" to JsonPrimitive(value))) }
-    override suspend fun setPlaybackDevices(devices: List<String>, token: String) { request("set_playback_devices", mapOf("devices" to JsonArray(devices.map(::JsonPrimitive)), "token" to JsonPrimitive(token))) }
-    override suspend fun dismissMembership() { request("dismiss_membership") }
-    override suspend fun catalog() = json.decodeFromJsonElement<CatalogData>(request("catalog"))
-    override suspend fun importChannel(url: String?) { request("import_channel", url?.let { mapOf("url" to JsonPrimitive(it)) } ?: emptyMap()) }
     override fun close() { runCatching { synchronized(writer) { writer.close() } } }
 }

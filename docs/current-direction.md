@@ -313,3 +313,7 @@ The Mac app now implements all four guards. Expiry is read from the receiver's o
 ### Resume renews the stream link before it runs short (2026-10-17)
 
 Owner decision: the Mac app renews the YouTube link on Resume or seek whenever the link will not outlast the rest of the mix plus 10 minutes, not only after it has expired. The owner's first proposal was to refresh after any pause longer than 30 seconds; the lifetime rule was chosen to keep short-pause Resume instant. If a new link cannot be fetched while the old one still works, the app falls back to an ordinary Resume. Stop always cancels both. Resume by voice or from the Google Home app bypasses this. See [source-url-expiry.md](source-url-expiry.md).
+
+### Android on the Mac's Python bridge: test build (2026-10-18)
+
+To compare against the Kotlin-port proposal (`openspec/changes/kotlin-cast-client`), branch `android-python-bridge` holds an Android build that runs the unchanged Mac Python bridge in-process (Chaquopy) and drops the Google Cast SDK and the raw Cast layer. It is a separate app id (`com.moozaq.app.py`) and is not the accepted Android direction yet. It has only passed a silent startup and discovery check. Decide between the two paths after owner-authorised parity runs on this build.

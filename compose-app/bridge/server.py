@@ -381,7 +381,8 @@ def create_lab():
     return Lab(known_hosts=preferences.known_hosts())
 
 
-def main():
+def start_bridge():
+    """Discovery and monitors start here. Nothing on this path loads media or changes volume."""
     lab = create_lab()
     bridge = Bridge(lab)
     bridge.group_monitor = GroupMonitor(lab, bridge.membership)
@@ -389,23 +390,36 @@ def main():
     threading.Thread(target=bridge.membership.run, daemon=True).start()
     threading.Thread(target=bridge.outputs.run, daemon=True).start()
     threading.Thread(target=bridge.maintain, daemon=True).start()
+    return bridge
+
+
+def handle_line(bridge, line):
+    request = {}
+    try:
+        request = json.loads(line)
+        result = {'id': request['id'], 'result': bridge.dispatch(request)}
+    except Exception as exc:
+        result = {'id': request.get('id'), 'error': redacted(str(exc))}
+    return json.dumps(result)
+
+
+def close_bridge(bridge):
+    bridge.closed = True
+    bridge.group_follower.close()
+    bridge.membership.close()
+    bridge.outputs.close()
+    bridge.group_monitor.close()
+    # Remote detachment only. Do not stop the Nest session on window close.
+    bridge.lab.close()
+
+
+def main():
+    bridge = start_bridge()
     try:
         for line in sys.stdin:
-            request = {}
-            try:
-                request = json.loads(line)
-                result = {'id': request['id'], 'result': bridge.dispatch(request)}
-            except Exception as exc:
-                result = {'id': request.get('id'), 'error': redacted(str(exc))}
-            print(json.dumps(result), flush=True)
+            print(handle_line(bridge, line), flush=True)
     finally:
-        bridge.closed = True
-        bridge.group_follower.close()
-        bridge.membership.close()
-        bridge.outputs.close()
-        bridge.group_monitor.close()
-        # Remote detachment only. Do not stop the Nest session on window close.
-        lab.close()
+        close_bridge(bridge)
 
 
 if __name__ == '__main__':

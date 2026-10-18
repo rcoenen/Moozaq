@@ -11,13 +11,13 @@ import kotlinx.coroutines.*
 
 class MainActivity:ComponentActivity() {
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
-    private lateinit var backend:AndroidBackend
+    private lateinit var backend:ChaquopyBackend
     private lateinit var store:PlayerStore
     private var polling:Job?=null
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(0xff10131a.toInt()),navigationBarStyle=SystemBarStyle.dark(0xff10131a.toInt()))
-        backend=AndroidBackend(applicationContext)
+        backend=ChaquopyBackend(applicationContext)
         store=PlayerStore(backend,scope)
         setContent {MoozaqApp(store)}
     }

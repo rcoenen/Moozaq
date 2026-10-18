@@ -6,4 +6,5 @@ plugins {
     id("com.android.library") version "8.9.1" apply false
     id("com.android.application") version "8.9.1" apply false
     kotlin("android") version "2.2.20" apply false
+    id("com.chaquo.python") version "17.1.0" apply false
 }
