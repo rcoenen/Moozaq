@@ -24,8 +24,8 @@ android {
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 25
-        versionName = "0.6.6"
+        versionCode = 26
+        versionName = "0.6.7"
     }
     sourceSets["main"].assets.srcDir(bridgeAssets)
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

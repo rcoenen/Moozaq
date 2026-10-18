@@ -67,7 +67,14 @@ fun PhoneNowPlaying(
                 ) {
                     UiIcon(Res.drawable.ui_expand_more, modifier = Modifier.size(28.dp), tint = colors.onSurface)
                 }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                // Tapping where it is casting opens the speaker choice.
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                        .clickable(onClickLabel = "Choose speakers") { onOpenCast() }
+                        .semantics(mergeDescendants = true) { contentDescription = "Casting to ${playback.device}. Choose speakers" }
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     Text("Casting to", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                     Text(
                         playback.device,
@@ -77,13 +84,8 @@ fun PhoneNowPlaying(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                IconButton(
-                    onClick = onOpenCast,
-                    modifier = Modifier.size(Dimens.TouchTarget)
-                        .semantics { contentDescription = "Casting to ${playback.device}. Choose devices" },
-                ) {
-                    UiIcon(Res.drawable.ui_cast_connected, modifier = Modifier.size(24.dp), tint = colors.tertiary)
-                }
+                // Balances the close arrow so the title stays centred.
+                Spacer(Modifier.size(Dimens.TouchTarget))
             }
 
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
