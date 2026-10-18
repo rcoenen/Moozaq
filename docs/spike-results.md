@@ -653,3 +653,16 @@ On 0.6.0 (`com.moozaq.app`, Python bridge) the owner tapped three mixes at about
 - shows `v0.6.1 (20)` beside the phone wordmark.
 
 Installed on the Pixel, not opened. Not yet observed on the phone: the probe output, the cover cache and the label.
+
+### Android 0.6.1–0.6.9 phone UI on the Python bridge (2026-10-18)
+
+Builds 0.6.1 to 0.6.9 (codes 20–28) were installed on the Pixel one after another at the owner's request, without opening the app or changing playback. They added:
+- the build label beside the wordmark, and an on-device cover cache;
+- an Android-only probe that logs why Nest rejects a stream;
+- transport controls that stay enabled while volume is confirmed (volume has its own lane in the bridge);
+- the known kind kept for physical speakers through partial discovery updates;
+- the player as an overlay sheet (swipe the mini player up to open, drag down anywhere to close), measured on a fixed layer so it follows the finger at full speed;
+- the Cast sheet redesigned after Android's output switcher and Google Home: fixed device order, separate rows, a chosen device as a volume pill;
+- a one-time, read-only startup follow of the single output playing a Moozaq-tagged mix when the remembered remote is idle.
+
+The owner reported 0.6.9 "works great" on the phone. Silent checks: 131 bridge tests, 68 desktop tests (including touch-driven sheet tests and Cast renders), 9 Android shim tests, `assembleDebug`, `lintDebug`. Not verified on the phone: the startup follow after a restart, the rejected-stream probe output (no rejection since 0.6.1), and the reconnect delay after the app returns from the background (still a few seconds of "Connecting…").
