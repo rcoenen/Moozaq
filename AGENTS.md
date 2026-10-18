@@ -18,7 +18,7 @@ Use Bedroom speaker for playback only when explicitly requested. Do not use Offi
 
 ## Repository map
 
-- `compose-app/`: next Kotlin / Compose Multiplatform UI, shared Android library target, desktop app and private Python engine bridge. See its README for build commands; preserve `mac-spike` as the working reference.
+- `compose-app/`: Kotlin / Compose Multiplatform UI, desktop app, Android app and the Python Cast bridge (`bridge/`). Both apps run that same bridge: the Mac as a subprocess, Android in-process through Chaquopy (see `compose-app/androidApp/README.md`). The bridge still imports `mac-spike/engine.py`, so changes there reach both apps. The former Google Cast SDK Android app is parked on branch `android-google-cast-sdk`. See its README for build commands; preserve `mac-spike` as the working reference.
 
 - `mac-spike/app.py`: native Tk user interface; UI updates belong on the main thread.
 - `mac-spike/engine.py`: Cast discovery, media state, extraction jobs and local media delivery.
@@ -46,7 +46,14 @@ mac-spike/.venv/bin/python -m py_compile mac-spike/app.py mac-spike/engine.py
 ./mac-spike/Launch.command
 ```
 
-Android uses JDK 17, SDK 35 and the checked-in Gradle wrapper:
+The Android app (`compose-app/androidApp`) runs the Python bridge in-process:
+
+```sh
+./compose-app/gradlew -p compose-app :androidApp:assembleDebug :androidApp:lintDebug
+mac-spike/.venv/bin/python -m unittest discover -s compose-app/androidApp/src/test/python -v
+```
+
+The older `android-spike` prototype uses JDK 17, SDK 35 and the checked-in Gradle wrapper:
 
 ```sh
 ./android-spike/gradlew -p android-spike assembleDebug lintDebug
@@ -87,6 +94,6 @@ A short direct-URL test of the first mix played audibly on Bedroom speaker witho
 
 All four All speakers members were audibly confirmed after fixing implicit receiver launches from diagnostic status requests. Always install `install_passive_status` before starting main/member Cast connections: the library's normal `update_status()` can launch an app when the media channel is missing. Keep reconnect/monitoring read-only. Last individually confirmed volumes were 50% for all four, but never apply remembered volumes on reconnect. This is one successful direct-route session, not repeatability or three-hour proof; see `docs/spike-results.md`.
 
-### Android group follow (October 17, 2026)
+### Android group follow (October 17, 2026, Google Cast SDK app, now on branch `android-google-cast-sdk`)
 
 One authorized Kitchen add while Bedroom was playing moved the mix onto the temporary group "Bedroom speaker + 1" and kept it playing. Android 0.4.2 then slept its confirmation timeout a second time, left the Kitchen check in flight, and kept polling Bedroom after that speaker's app was gone (status 2103). The 0.4.3 source fix keeps reading until the deadline and may select the one discovered group whose session, media, and active state match. It does not send the membership command again and does not load media. That path has not been re-run as another add or remove. Opening 0.4.3 did not look for the group. Android 0.4.4 (code 14) is installed on the Pixel. On open it joined the already-playing temporary group once, without LOAD or another membership command, and did not save that group as the remembered speaker. See `docs/spike-results.md`.

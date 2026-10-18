@@ -17,7 +17,7 @@ Requires the existing `mac-spike/.venv` environment and Homebrew JDK 17. The lau
 - `composeApp/src/commonMain`: shared catalog, artwork resources, player state and Compose UI. Below 600 dp the UI is the phone design from `docs/design-handoff/android/` (Browse, Now playing, Cast to, Nothing playing); above 600 dp it is the desktop screen.
 - `composeApp/src/desktopMain`: desktop window and private JSON-lines subprocess adapter.
 - `bridge/server.py`: command bridge to the existing Python Cast engine. No network control endpoint; signed media URLs stay inside Python.
-- `androidApp/`: installable standalone Compose Android app with on-device source resolution, native Google Cast and a private metadata cache. No Mac dependency. See [`androidApp/README.md`](androidApp/README.md); `android-spike` remains a separate reference.
+- `androidApp/`: installable standalone Compose Android app. It runs the same Python bridge as the Mac in-process (Chaquopy), with on-device yt-dlp. No Mac dependency and no Google Cast SDK. See [`androidApp/README.md`](androidApp/README.md); `android-spike` remains a separate reference.
 
 The Mac currently uses direct playback (route A). Relay/cache experiments remain in the Python reference. Closing the Compose window detaches the remote without stopping the receiver. Artwork and titles for the six starter mixes are bundled from the existing metadata cache; no refetch on selection. Unknown external sessions display their receiver title with a generic logo.
 
@@ -29,6 +29,8 @@ The generated `.app` embeds a JVM but still depends on this checkout and its Pyt
 JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./compose-app/gradlew -p compose-app :composeApp:desktopTest :composeApp:assembleDebug :composeApp:createDistributable
 mac-spike/.venv/bin/python -m unittest discover -s compose-app/bridge -v
 mac-spike/.venv/bin/python -m unittest discover -s mac-spike -v
+mac-spike/.venv/bin/python -m unittest discover -s compose-app/androidApp/src/test/python -v
+./compose-app/gradlew -p compose-app :androidApp:assembleDebug :androidApp:lintDebug
 ```
 
 No automated check starts audio. Live playback, Android Cast integration, and long-session reliability require separate validation.

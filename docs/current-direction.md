@@ -314,6 +314,10 @@ The Mac app now implements all four guards. Expiry is read from the receiver's o
 
 Owner decision: the Mac app renews the YouTube link on Resume or seek whenever the link will not outlast the rest of the mix plus 10 minutes, not only after it has expired. The owner's first proposal was to refresh after any pause longer than 30 seconds; the lifetime rule was chosen to keep short-pause Resume instant. If a new link cannot be fetched while the old one still works, the app falls back to an ordinary Resume. Stop always cancels both. Resume by voice or from the Google Home app bypasses this. See [source-url-expiry.md](source-url-expiry.md).
 
-### Android on the Mac's Python bridge: test build (2026-10-18)
+### Android runs the Mac's Python bridge (decided 2026-10-18)
 
-To compare against the Kotlin-port proposal (`openspec/changes/kotlin-cast-client`), branch `android-python-bridge` holds an Android build that runs the unchanged Mac Python bridge in-process (Chaquopy) and drops the Google Cast SDK and the raw Cast layer. It is a separate app id (`com.moozaq.app.py`) and is not the accepted Android direction yet. It has only passed a silent startup and discovery check. Decide between the two paths after owner-authorised parity runs on this build.
+The owner chose the Python bridge as the Android path. `main` now builds Android 0.6.0 (`com.moozaq.app`), which runs the unchanged Mac bridge in-process through Chaquopy, with no Google Cast SDK or raw Cast v2 layer. The SDK app (0.5.0 and earlier) is parked on branch `android-google-cast-sdk`. Both apps now share one Cast implementation, so bridge fixes and tests apply to both.
+
+Evidence so far: discovery of all five speakers; play, pause, resume, seek and Stop confirmed from receiver state on Bedroom; and one audible play and Stop. Speaker membership, group volume, reopen and long sessions are not yet tested on this build.
+
+The OpenSpec change `kotlin-cast-client` (a Kotlin port) is on hold. The `android-cast-recovery` and `android-route-selection` specs describe the parked SDK app, not this build.

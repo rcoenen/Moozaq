@@ -19,14 +19,13 @@ android {
     namespace = "com.moozaq.app"
     compileSdk = 35
     defaultConfig {
-        // Test build: installs beside the Google Cast SDK app instead of replacing it.
-        applicationId = "com.moozaq.app.py"
+        applicationId = "com.moozaq.app"
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
         versionCode = 19
-        versionName = "0.6.0-python"
+        versionName = "0.6.0"
     }
     sourceSets["main"].assets.srcDir(bridgeAssets)
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
