@@ -37,3 +37,13 @@ class InventoryTests(unittest.TestCase):
         renamed.friendly_name = 'Study speaker'
         self.inventory.observe([renamed])
         self.assertEqual([r['name'] for r in self.inventory.snapshot([renamed])], ['Study speaker'])
+
+    def test_partial_update_does_not_turn_a_speaker_into_a_tv(self):
+        mini = SimpleNamespace(uuid='kitchen', friendly_name='Kitchen speaker', model_name='Google Home Mini', cast_type='audio')
+        self.inventory.observe([mini])
+        partial = SimpleNamespace(uuid='kitchen', friendly_name='Kitchen speaker', model_name=None, cast_type='cast')
+        self.inventory.observe([partial])
+        row = self.inventory.snapshot([partial])[0]
+        self.assertEqual((row['cast_type'], row['model'], row['available']), ('audio', 'Google Home Mini', True))
+        reloaded = DeviceInventory(self.inventory.path)
+        self.assertEqual(reloaded.snapshot([])[0]['cast_type'], 'audio')
