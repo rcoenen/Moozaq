@@ -18,10 +18,11 @@ class SeekTracker:
     def load_media_failed(self, queue_item_id, error_code):
         pass
 
-    def seek_confirmed(self, lab, value, timeout=6):
+    def seek_confirmed(self, lab, value, timeout=6, expected_generation=None):
         if not isinstance(value, (int, float)) or not 0 <= value <= 864000:
             raise ValueError('Invalid seek position.')
-        cast, generation = self.cast, lab.generation
+        cast = self.cast
+        generation = lab.generation if expected_generation is None else expected_generation
         mc = cast.media_controller
         session = mc.status.media_session_id
         state = mc.status.player_state
@@ -51,8 +52,11 @@ class SeekTracker:
             time.sleep(.1)
         raise TimeoutError('Seek position was not confirmed.')
 
-    def playback_confirmed(self, lab, paused, timeout=6):
-        cast, generation = self.cast, lab.generation
+    def playback_confirmed(self, lab, paused, timeout=6, expected_generation=None):
+        cast = self.cast
+        # A fallback after a failed link refresh passes the generation from its request, so
+        # a Stop in between cancels it.
+        generation = lab.generation if expected_generation is None else expected_generation
         mc = cast.media_controller
         session = mc.status.media_session_id
         expected = 'PAUSED' if paused else 'PLAYING'

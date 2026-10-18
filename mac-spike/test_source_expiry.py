@@ -124,45 +124,108 @@ class ExpiryFromReceiver(unittest.TestCase):
         lab.last_position = ('hash', 6130.0)
         self.assertEqual(lab.status()['resume_position'], 6130.0)
 
+    def test_link_that_will_not_last_the_mix_needs_refresh(self):
+        # 4200 s into a 3 h mix leaves 6600 s; a link with 1 h left will not last.
+        lab, _ = receiver_lab(time.time() + 3600)
+        status = lab.status()
+        self.assertTrue(status['refresh_needed'])
+        self.assertFalse(status['source_expired'])
+
+    def test_link_that_outlasts_the_mix_needs_no_refresh(self):
+        lab, _ = receiver_lab(time.time() + 5 * 3600)
+        self.assertFalse(lab.status()['refresh_needed'])
+
     def test_refresh_reloads_at_position_and_keeps_pause(self):
-        lab, _ = receiver_lab(time.time() - 5, position=4200.0)
-        lab.play_test = Mock()
-        lab.refresh_expired(paused=True)
+        lab, _ = refreshable(time.time() - 5, position=4200.0)
+        lab.refresh_source(paused=True)
+        lab.ensure_source.assert_called_once_with(SOURCE, 4200.0)
         lab.play_test.assert_called_once_with('direct', SOURCE, .4, expected_generation=0,
                                               start=4200.0, autoplay=False)
 
     def test_refresh_seek_target(self):
-        lab, _ = receiver_lab(time.time() - 5, state='PLAYING')
-        lab.play_test = Mock()
-        lab.refresh_expired(position=9000, paused=False)
+        lab, _ = refreshable(time.time() - 5, state='PLAYING')
+        lab.refresh_source(position=9000, paused=False)
         self.assertEqual(lab.play_test.call_args.kwargs['start'], 9000)
         self.assertTrue(lab.play_test.call_args.kwargs['autoplay'])
 
-    def test_refresh_refuses_unexpired_link(self):
-        lab, _ = receiver_lab(time.time() + 3600)
-        lab.play_test = Mock()
+    def test_refresh_refuses_link_that_lasts(self):
+        lab, _ = refreshable(time.time() + 5 * 3600)
         with self.assertRaises(ValueError):
-            lab.refresh_expired()
+            lab.refresh_source()
+        lab.ensure_source.assert_not_called()
+        lab.play_test.assert_not_called()
+
+    def test_failed_lookup_with_valid_link_allows_plain_resume(self):
+        from engine import RefreshUnavailable
+        lab, _ = refreshable(time.time() + 3600)
+        lab.ensure_source.side_effect = RuntimeError('YouTube lookup failed')
+        with self.assertRaises(RefreshUnavailable):
+            lab.refresh_source()
+        lab.play_test.assert_not_called()
+
+    def test_failed_lookup_with_expired_link_is_an_error(self):
+        from engine import RefreshUnavailable
+        lab, _ = refreshable(time.time() - 5)
+        lab.ensure_source.side_effect = RuntimeError('YouTube lookup failed')
+        with self.assertRaises(RuntimeError) as raised:
+            lab.refresh_source()
+        self.assertNotIsInstance(raised.exception, RefreshUnavailable)
+
+    def test_stop_during_lookup_never_falls_back_to_resume(self):
+        from engine import RefreshUnavailable
+        lab, _ = refreshable(time.time() + 3600)
+        def stopped(*_):
+            lab.generation += 1
+            raise RuntimeError('Operation cancelled; no new media loaded.')
+        lab.ensure_source.side_effect = stopped
+        with self.assertRaises(RuntimeError) as raised:
+            lab.refresh_source(expected_generation=0)
+        self.assertNotIsInstance(raised.exception, RefreshUnavailable)
         lab.play_test.assert_not_called()
 
     def test_stop_before_refresh_load_prevents_sound(self):
-        lab, _ = receiver_lab(time.time() - 5)
+        lab, _ = refreshable(time.time() - 5)
         lab.generation = 1  # Stop pressed after the refresh request was accepted.
-        lab.ensure_source = Mock()
         with self.assertRaises(RuntimeError):
-            lab.refresh_expired(expected_generation=0)
+            lab.refresh_source(expected_generation=0)
         lab.ensure_source.assert_not_called()
-        lab.cast.media_controller.play_media.assert_not_called()
+        lab.play_test.assert_not_called()
 
-    def test_paused_expired_play_refreshes_instead_of_play_command(self):
-        lab, _ = receiver_lab(time.time() - 5)
-        lab.control_timeout = 3
-        lab.sync_media = Mock(return_value=True)
-        lab.command = Mock()
-        lab.refresh_expired = Mock()
+    def test_paused_play_refreshes_short_link_instead_of_play_command(self):
+        lab, _ = selection_lab(time.time() + 3600)
         lab.play_selection(SOURCE)
-        lab.refresh_expired.assert_called_once_with(expected_generation=0)
+        lab.refresh_source.assert_called_once_with(expected_generation=0)
         lab.command.assert_not_called()
+
+    def test_paused_play_falls_back_when_no_new_link(self):
+        from engine import RefreshUnavailable
+        lab, _ = selection_lab(time.time() + 3600)
+        lab.refresh_source.side_effect = RefreshUnavailable('no link')
+        lab.play_selection(SOURCE)
+        lab.command.assert_called_once_with('play')
+
+    def test_paused_play_with_long_link_is_plain_resume(self):
+        lab, _ = selection_lab(time.time() + 5 * 3600)
+        lab.play_selection(SOURCE)
+        lab.refresh_source.assert_not_called()
+        lab.command.assert_called_once_with('play')
+
+
+def refreshable(expires_at, **kwargs):
+    lab, media = receiver_lab(expires_at, **kwargs)
+    lab.cancelled = threading.Event()
+    lab.ensure_source = Mock()
+    lab.play_test = Mock()
+    return lab, media
+
+
+def selection_lab(expires_at):
+    lab, media = receiver_lab(expires_at)
+    lab.control_timeout = 3
+    lab.sync_media = Mock(return_value=True)
+    lab.command = Mock()
+    lab.refresh_source = Mock()
+    return lab, media
 
 
 class LoadAtPosition(unittest.TestCase):

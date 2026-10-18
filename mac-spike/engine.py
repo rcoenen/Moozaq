@@ -224,6 +224,10 @@ def url_expiry(url):
         return None
 
 
+class RefreshUnavailable(RuntimeError):
+    """A new link could not be fetched before any LOAD; the old link is still valid."""
+
+
 def remaining_need(duration, start=0):
     """Seconds of media a load starting at `start` still has to fetch."""
     if not duration:
@@ -492,9 +496,12 @@ class Lab:
         if generation != self.generation:
             raise RuntimeError('Playback cancelled by Stop.')
         if active and (not source or source == status.get('source')):
-            if status['state'] == 'PAUSED' and status.get('source_expired'):
-                # PLAY would make the speaker request an expired link.
-                self.refresh_expired(expected_generation=generation)
+            if status['state'] == 'PAUSED' and status.get('refresh_needed'):
+                # The link would not last the rest of the mix: resume on a fresh one.
+                try:
+                    self.refresh_source(expected_generation=generation)
+                except RefreshUnavailable:
+                    self.command('play')
             elif status['state'] == 'PAUSED':
                 self.command('play')
             # Already playing or buffering: do not restart or send redundant commands.
@@ -548,8 +555,11 @@ class Lab:
         remembered = getattr(self, 'last_position', None)
         resume_position = (remembered[1] if remembered and remembered[0] == fingerprint
                            else media.adjusted_current_time)
+        # Resume/seek should renew a link that would run out before the mix ends.
+        refresh_needed = bool(source and expires_at and expires_at - time.time()
+                              < remaining_need(media.duration, resume_position) + EXPIRY_MARGIN)
         return {'connected': cast.socket_client.is_connected, 'device': cast.cast_info.friendly_name,
-                'expires_at': expires_at, 'source_expired': source_expired,
+                'expires_at': expires_at, 'source_expired': source_expired, 'refresh_needed': refresh_needed,
                 'resume_position': round(resume_position or 0, 1),
                 'reconnecting': not cast.socket_client.is_connected,
                 'source': source, 'content_key': fingerprint,
@@ -686,18 +696,32 @@ class Lab:
         except (requests.RequestException, ValueError) as exc:
             raise RuntimeError('Direct stream is not accessible. Existing receiver playback was not replaced.') from exc
 
-    def refresh_expired(self, position=None, paused=False, expected_generation=None):
-        """Explicit Resume/seek on a mix whose signed link expired: resolve again and load
-        at the same position. Never called by reconnection or monitoring."""
+    def refresh_source(self, position=None, paused=False, expected_generation=None):
+        """Explicit Resume/seek when the signed link expired or would not last the rest of
+        the mix: resolve again and load at the same position. Never called by reconnection
+        or monitoring. Raises RefreshUnavailable, before any LOAD, when a new link cannot be
+        fetched but the old one still works, so the caller can fall back to plain control."""
         generation = self.generation if expected_generation is None else expected_generation
         status = self.status()
-        if not status.get('source_expired'):
-            raise ValueError('The current stream link has not expired; nothing to refresh.')
+        if not status.get('refresh_needed'):
+            raise ValueError('The current stream link lasts the rest of the mix; nothing to refresh.')
         source = status.get('source')
         if not source:
-            raise ValueError('Cannot identify the expired mix. Choose it again to play.')
+            raise ValueError('Cannot identify the current mix. Choose it again to play.')
         if position is None:
             position = status.get('resume_position') or 0
+        if generation != self.generation:
+            raise RuntimeError('Playback cancelled by Stop.')
+        try:
+            self.ensure_source(source, position)
+        except Exception as exc:
+            # Stop cancels the lookup too; that must never fall back to plain Resume.
+            if generation != self.generation or self.cancelled.is_set():
+                raise RuntimeError('Playback cancelled by Stop.') from exc
+            if status.get('source_expired'):
+                raise
+            self.log('source-refresh-unavailable', 'New link unavailable; existing link still valid: ' + str(exc))
+            raise RefreshUnavailable('A new stream link could not be fetched.') from exc
         volume = max(0, min(1, (status.get('volume') or 15) / 100))
         self.log('source-refresh', f'{source.rsplit("=", 1)[-1]} · reload at {round(position)}s · {"paused" if paused else "playing"}')
         self.play_test('direct', source, volume, expected_generation=generation, start=position, autoplay=not paused)

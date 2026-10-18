@@ -16,7 +16,9 @@ import kotlinx.coroutines.flow.*
     val state: String? = null, val position: Double? = null, val duration: Double? = null,
     val transport_revision: Long = 0, val seek_revision: Long = 0, val volume: Int? = null, val volume_revision: Long = 0, val source: String? = null, val mode: String? = null, val idle_reason: String? = null,
     /** The signed stream link expired; state EXPIRED means the speaker stopped on it. */
-    val source_expired: Boolean = false, val expires_in: Double? = null
+    val source_expired: Boolean = false, val expires_in: Double? = null,
+    /** The link would run out before the mix ends; Resume renews it first. */
+    val refresh_needed: Boolean = false
 )
 @Serializable data class Snapshot(
     val devices: List<Device> = emptyList(), val receiver: Receiver = Receiver(),

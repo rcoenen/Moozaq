@@ -2,7 +2,7 @@
 
 Status: **Mac app guards implemented 2026-10-17; silent tests only; hardware behavior assumed, untested.** Android guards not implemented (separate agent). No receiver has yet been observed failing on an expired link; see *Unproven* below. Hardware validation is deferred as low priority (owner decision 2026-10-17); see *Deferred hardware test plan*.
 
-Practical limit: a mix played straight through is expected to be safe up to the link lifetime (about 6 h measured), counted from when the link was fetched, **including pauses**. A long pause followed by Resume relies on the untested refresh path.
+Practical limit: a mix played straight through is expected to be safe up to the link lifetime (about 6 h measured), counted from when the link was fetched, **including pauses**. Since 2026-10-17, Resume in the Mac app renews the link before it runs short, so a long pause no longer depends on the speaker failing first. Resume by voice or the Google Home app bypasses Moozaq and still uses the old link.
 
 ## How playback reaches the speaker
 
@@ -44,7 +44,7 @@ Deviation from the original plan, deliberate: a *fresh* link shorter than the mi
 
 ### 2. Expiry from the receiver, not stored URLs — implemented (Mac)
 
-The speaker's own media status carries the signed URL as `content_id`, so `Lab.status()` derives `expires_at` / `source_expired` from authoritative receiver state. This works after reconnecting and for sessions started by an earlier app run, without persisting anything. The URL never leaves the engine; the bridge exposes only `source_expired` and `expires_in` (seconds). Relay/cache routes have local URLs and report unknown expiry.
+The speaker's own media status carries the signed URL as `content_id`, so `Lab.status()` derives `expires_at`, `source_expired` and `refresh_needed` (the link will not outlast the rest of the mix plus `EXPIRY_MARGIN`) from authoritative receiver state. This works after reconnecting and for sessions started by an earlier app run, without persisting anything. The URL never leaves the engine; the bridge exposes only `source_expired`, `refresh_needed` and `expires_in` (seconds). Relay/cache routes have local URLs and report unknown expiry.
 
 The last confirmed PLAYING/PAUSED position is kept in memory per content hash (`Lab.last_position`) so a failed session still knows where it was.
 
@@ -54,12 +54,18 @@ When the receiver is `IDLE` with `idleReason=ERROR` **and** its link is past exp
 
 Known delay: session recovery treats the sudden IDLE as a possible handoff and shows "Reconnecting…" for up to ~15 s before the expired state appears.
 
-### 4. Refresh on explicit Resume or seek — implemented (Mac)
+### 4. Renew the link on explicit Resume or seek — implemented (Mac)
 
-- **Resume** when the link has expired (state `EXPIRED`, or `PAUSED` past expiry) calls `Lab.refresh_expired()`: re-resolve, then LOAD at the last position with autoplay. `play_selection` applies the same rule for a paused expired session.
-- **Seek** past expiry on a `PLAYING`/`PAUSED` session reloads at the seek target, keeping pause (`autoplay=false`, confirmed as `PAUSED`). Seek on an `EXPIRED` failure is refused; press Resume first.
-- Each refresh is a single attempt bound to the Stop generation; Stop before the LOAD prevents sound. Success is confirmed from fresh receiver state (`PLAYING` or `PAUSED` for the new content). Failure is shown, never retried automatically. The Resume button reads "Refreshing…" while pending.
+Owner decision 2026-10-17: renew **before** the link runs out, not only after it has expired. The owner proposed refreshing on every Resume after a pause longer than 30 s; adopted instead is a lifetime rule, because a refresh costs a YouTube lookup plus rebuffering (several seconds) and most pauses are short while the link still has hours left.
+
+- **Rule:** on Resume or seek, refresh when `refresh_needed`: the link has expired, or it will not last the rest of the mix (`duration − position`) plus 10 minutes. Otherwise Resume and seek are the ordinary instant commands.
+- **Resume** with `refresh_needed` (state `EXPIRED`, or `PAUSED`) calls `Lab.refresh_source()`: re-resolve, then LOAD at the last position with autoplay. `play_selection` applies the same rule to a paused session.
+- **Seek** with `refresh_needed` on a `PLAYING`/`PAUSED` session reloads at the seek target, keeping pause (`autoplay=false`, confirmed as `PAUSED`). Seek on an `EXPIRED` failure is refused; press Resume first.
+- **Fallback:** if the new link cannot be fetched but the old link has not expired, `RefreshUnavailable` is raised before any LOAD and the app does the ordinary Resume or seek instead. With an already-expired link, the failure is shown.
+- **Stop always wins:** a Stop during the lookup never falls back to Resume, and the fallback carries the generation of the original request, so a Stop in between sends nothing.
+- Each refresh is a single attempt. Success is confirmed from fresh receiver state (`PLAYING` or `PAUSED` for the new content). Failure is shown, never retried automatically. The Resume button reads "Refreshing…" while pending.
 - The current receiver volume is used, never a remembered one.
+- Not covered: Resume by voice or from the Google Home app goes straight to the speaker. If that fails on an expired link, guard 3 presents it.
 
 ### Constraints from existing rules
 
@@ -74,8 +80,8 @@ Cache/relay (route B/C): download the complete audio (~170 MB for 3 h at 128 kbp
 
 ### Silent test coverage
 
-- `mac-spike/test_source_expiry.py` (18): expiry parsing and host checks, cache reuse vs re-resolve, late-start lifetime, refusal of an already-expiring link, long-mix risk logging, receiver-derived expiry without URL exposure, last-position recovery, paused/playing refresh, Stop before refresh, LOAD `currentTime`/`autoplay`/expected state.
-- `compose-app/bridge/test_expiry.py` (10): Resume/seek routing, normal transport when the link is live, refused seek on a failed session, single attempt on failure, `EXPIRED` presentation, Stop not shown as expiry, other-session expiry ignored, no load from snapshots.
+- `mac-spike/test_source_expiry.py` (25): expiry parsing and host checks, cache reuse vs re-resolve, late-start lifetime, refusal of an already-expiring link, long-mix risk logging, receiver-derived expiry without URL exposure, `refresh_needed` for short and long links, last-position recovery, paused/playing refresh, lookup failure fallback vs error, Stop during lookup and before LOAD, plain Resume for long links, LOAD `currentTime`/`autoplay`/expected state.
+- `compose-app/bridge/test_expiry.py` (14): Resume/seek routing for expired and short links, plain fallback when no new link, normal transport when the link lasts, refused seek on a failed session, single attempt on failure, fallback sends nothing after Stop, `EXPIRED` presentation, Stop not shown as expiry, other-session expiry ignored, no load from snapshots.
 - `composeApp/.../ExpiryPresentationTest.kt` (6): Resume availability, labels, busy/synchronizing guards, decoding older snapshots.
 
 All mocked. No resolve, Cast command or audio during tests.
@@ -87,6 +93,7 @@ All mocked. No resolve, Cast command or audio during tests.
 - Seek near the end of a mix after expiry.
 - Whether the lifetime varies by video, format or network.
 - That the Default Media Receiver honours `currentTime` with `autoplay=false` and reports `PAUSED` (assumed by the paused-seek refresh).
+- How long a Resume-with-refresh takes in practice (lookup plus rebuffer), and whether the reload position is accurate to the second.
 - The real `idleReason` the Nest reports for an expired link (the guard assumes `ERROR`).
 
 Each requires audible playback and must not be run without an explicit owner request.

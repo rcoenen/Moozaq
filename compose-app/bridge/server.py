@@ -10,7 +10,7 @@ from pathlib import Path
 os.environ['PATH'] = '/opt/homebrew/bin:/usr/local/bin:' + os.environ.get('PATH', '')
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'mac-spike'))
-from engine import Lab, DATA, redacted, discovered_cast_infos
+from engine import Lab, DATA, RefreshUnavailable, redacted, discovered_cast_infos
 from groups import GroupMonitor
 from volume import VolumeTracker
 from seeking import SeekTracker
@@ -96,6 +96,7 @@ class Bridge:
         expired = bool(bound and status.get('connected') and status.get('source_expired'))
         expires_at = status.get('expires_at') if bound else None
         view = {'source_expired': expired,
+                'refresh_needed': bool(bound and status.get('connected') and status.get('refresh_needed')),
                 'expires_in': round(expires_at - time.time()) if expires_at else None}
         if expired and status.get('state') == 'IDLE' and status.get('idle_reason') == 'ERROR':
             # The speaker failed on the expired link (not Stop or a finished mix). Keep the
@@ -105,9 +106,17 @@ class Bridge:
                         duration=status.get('duration'), position=status.get('resume_position'))
         return view
 
-    def source_expired(self):
-        status = self.lab.status()
-        return bool(status.get('connected') and status.get('source_expired')), status
+    def link_state(self, status):
+        connected = bool(status.get('connected'))
+        return connected and bool(status.get('refresh_needed')), connected and bool(status.get('source_expired'))
+
+    def tracker(self):
+        cast = self.lab.cast
+        if cast is None:
+            raise ValueError('Connect to a speaker first.')
+        if self.seek_tracker is None or self.seek_tracker.cast is not cast:
+            self.seek_tracker = SeekTracker(cast)
+        return self.seek_tracker
 
     def recovery_rows(self):
         rows = self.outputs.recovery_rows()
@@ -243,12 +252,17 @@ class Bridge:
             if monitor is None:
                 raise ValueError('Speaker group is not available.')
             self.start('Adjusting speaker volume', lambda: monitor.set_member_volume(request['member'], request['value']))
-        elif op == 'resume' and self.source_expired()[0]:
-            # Resuming would make the speaker fetch an expired link: explicit refresh instead.
+        elif op == 'resume' and self.link_state(self.lab.status())[0]:
+            # The link expired or would run out before the mix ends: resume on a fresh link.
+            generation = self.lab.generation
             def refresh():
-                self.lab.refresh_expired(paused=False)
+                try:
+                    self.lab.refresh_source(paused=False, expected_generation=generation)
+                except RefreshUnavailable:
+                    # No new link, but the old one still works: plain Resume.
+                    self.tracker().playback_confirmed(self.lab, paused=False, expected_generation=generation)
                 self.transport_revision += 1
-            self.start('Refreshing expired stream link', refresh)
+            self.start('Refreshing stream link', refresh)
         elif op in ('resume', 'pause'):
             cast = self.lab.cast
             if cast is None:
@@ -278,17 +292,22 @@ class Bridge:
             value = request.get('value')
             if not isinstance(value, (int, float)) or not 0 <= value <= 864000:
                 raise ValueError('Invalid seek position.')
-            expired, status = self.source_expired()
-            if expired:
-                if status.get('state') not in ('PLAYING', 'PAUSED'):
-                    raise ValueError('The stream link expired. Press Resume to reload the mix first.')
+            status = self.lab.status()
+            refresh, expired = self.link_state(status)
+            if expired and status.get('state') not in ('PLAYING', 'PAUSED'):
+                raise ValueError('The stream link expired. Press Resume to reload the mix first.')
+            if refresh and status.get('state') in ('PLAYING', 'PAUSED'):
                 paused = status.get('state') == 'PAUSED'
-                # A seek is a new fetch; reload at the target and keep the play/pause state.
+                generation = self.lab.generation
+                # A seek is a new fetch; renew the link, reload at the target, keep play/pause.
                 def refresh_at():
-                    self.lab.refresh_expired(position=value, paused=paused)
+                    try:
+                        self.lab.refresh_source(position=value, paused=paused, expected_generation=generation)
+                        self.transport_revision += 1
+                    except RefreshUnavailable:
+                        self.tracker().seek_confirmed(self.lab, value, expected_generation=generation)
                     self.seek_revision += 1
-                    self.transport_revision += 1
-                self.start('Refreshing expired stream link', refresh_at)
+                self.start('Refreshing stream link', refresh_at)
                 return {'accepted': True}
             cast = self.lab.cast
             if cast is None:

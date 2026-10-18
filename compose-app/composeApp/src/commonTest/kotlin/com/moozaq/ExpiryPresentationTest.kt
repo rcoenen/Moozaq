@@ -38,5 +38,6 @@ class ExpiryPresentationTest {
             .decodeFromString(Receiver.serializer(), """{"connected":true,"state":"PAUSED"}""")
         assertFalse(r.source_expired)
         assertNull(r.expires_in)
+        assertFalse(r.refresh_needed)
     }
 }

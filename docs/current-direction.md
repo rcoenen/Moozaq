@@ -252,3 +252,7 @@ Moozaq casts an audio-only YouTube stream that the speaker fetches directly. Its
 ### Mac source URL expiry guards implemented (2026-10-17)
 
 The Mac app now implements all four guards. Expiry is read from the receiver's own media status, not stored. A fresh link shorter than a very long mix still loads, with the risk logged, so mixes longer than about 6 hours stay playable. An expired failure shows the mix with an explicit Resume that reloads at the last position. Seek after expiry reloads at the target and keeps pause. Reconnection stays read-only. Android still needs the same guards. See [source-url-expiry.md](source-url-expiry.md).
+
+### Resume renews the stream link before it runs short (2026-10-17)
+
+Owner decision: the Mac app renews the YouTube link on Resume or seek whenever the link will not outlast the rest of the mix plus 10 minutes, not only after it has expired. The owner's first proposal was to refresh after any pause longer than 30 seconds; the lifetime rule was chosen to keep short-pause Resume instant. If a new link cannot be fetched while the old one still works, the app falls back to an ordinary Resume. Stop always cancels both. Resume by voice or from the Google Home app bypasses this. See [source-url-expiry.md](source-url-expiry.md).

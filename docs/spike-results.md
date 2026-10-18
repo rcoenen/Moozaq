@@ -510,3 +510,7 @@ One silent metadata-only yt-dlp resolution of starter `7vy0H3ERRiA` (3.05 h) ret
 Implemented guards 1–4 in the Mac engine, Compose bridge and desktop player ([source-url-expiry.md](source-url-expiry.md)). Validation: 92 engine tests (18 new), 114 bridge tests (10 new) and 56 desktop Kotlin tests (6 new) pass; Python compiles; `createDistributable` succeeded. All mocked. No resolve, Cast command or audio during tests. The running app was not relaunched, so it still uses the previous bridge.
 
 Not verified on hardware: the Nest's actual `idleReason` for an expired link, `currentTime` with `autoplay=false` reporting `PAUSED`, Resume after a pause longer than the link lifetime, and late seeks after expiry. Each needs owner-authorized playback. Android is unchanged.
+
+### Mac Resume renews short stream links (2026-10-17)
+
+Resume and seek now renew the link when it will not outlast the rest of the mix plus 10 minutes, with a plain-Resume fallback if YouTube cannot issue a new link while the old one still works. Validation: 99 engine tests (25 expiry), 118 bridge tests (14 expiry) and 56 desktop Kotlin tests pass; Python compiles; `createDistributable` succeeded. All mocked. No resolve, Cast command or audio. Not verified on hardware: refresh duration, reload position accuracy, and paused reload state. The running app was not relaunched.

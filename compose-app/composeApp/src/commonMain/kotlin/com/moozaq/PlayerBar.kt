@@ -65,7 +65,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
                     Button(onClick={store.command(if(canPause(s)) "pause" else "resume")},
                         enabled=!awaiting && (canPause(s)||canResume(s)),modifier=Modifier.widthIn(min=96.dp).height(40.dp),contentPadding=PaddingValues(horizontal=16.dp),
                         colors=ButtonDefaults.buttonColors(disabledContainerColor=if(awaiting) c.onSurfaceVariant else c.onSurface.copy(alpha=.12f),disabledContentColor=if(awaiting) c.surface else c.onSurface.copy(alpha=.38f))) {
-                        Text(if(awaiting) when(transport?.expected) {"PAUSED"->"Pausing…";"IDLE"->"Stopping…";else->if(r.source_expired) "Refreshing…" else "Starting…"} else if(!r.connected || s.connecting) "Syncing…" else if(r.state=="PLAYING") "Pause" else "Resume")
+                        Text(if(awaiting) when(transport?.expected) {"PAUSED"->"Pausing…";"IDLE"->"Stopping…";else->if(r.source_expired || r.refresh_needed) "Refreshing…" else "Starting…"} else if(!r.connected || s.connecting) "Syncing…" else if(r.state=="PLAYING") "Pause" else "Resume")
                     }
                 } else if(hasLast && mix!=null) Button(onClick={store.play(mix)},enabled=ui.destination==null&&canRequestPlay(s,mix),modifier=Modifier.height(40.dp)) {
                     UiIcon(Res.drawable.ui_play_arrow,modifier=Modifier.size(22.dp));Spacer(Modifier.width(6.dp));Text("Play again")
