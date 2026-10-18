@@ -33,6 +33,10 @@ These are already done. A content change must not redo them.
 
 The site must say that Moozaq is free, open source, and has no ads, accounts, or subscriptions. That overrides the older “no free forever” line in `docs/website-design-brief.md`. The brief is still the visual reference.
 
+Call each long recording a "vibe", never a "mix": Moozaq plays creators' recordings and does not mix anything. Don't feature particular vibes, counts or durations. The catalog is large and keeps changing, so artwork is used as mood imagery and copy talks in ranges ("an hour or more"). Android and Mac get equal billing. Sonos is shown as coming soon.
+
+The page design is a 1970s hi-fi receiver: harvest-gold paper, a sunset arc and a walnut cabinet holding a brushed-silver mood tuner (`src/components/Receiver.astro`). It follows the OS light or dark setting. The tuner switches between mood panels rendered on the server and never plays audio.
+
 Android and Mac download links are placeholders (`#`) in `src/data/site.ts` until real GitHub release URLs exist. Do not host APKs and do not invent a store listing. The page must not autoplay audio.
 
 `node_modules/`, `dist/`, and `.wrangler/` are gitignored.

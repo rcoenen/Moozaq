@@ -1,0 +1,182 @@
+---
+/**
+ * The mood tuner: a walnut cabinet with a brushed-silver receiver. Every mood's
+ * panel is rendered here; the script only switches which one shows, so the first
+ * mood is visible without JavaScript. Nothing here plays audio.
+ */
+import { art, moods } from "../data/site";
+
+const n = moods.length;
+const pos = moods.map((_, i) => (100 * (i + 0.5)) / n);
+const glowX = (x: number) => 3 + x * 0.94;
+---
+
+<section class="cabinet" id="moods" aria-labelledby="moods-title" data-tuner>
+  <div class="wrap">
+    <div class="cab-head">
+      <div>
+        <p class="label">The moods</p>
+        <h2 id="moods-title">What does today feel like?</h2>
+      </div>
+      <p>Press a preset or turn the knob. Every mood opens onto a growing shelf of long vibes, each one credited to the creator who made it.</p>
+    </div>
+
+    <div class="receiver" data-receiver>
+      <div class="plate">
+        <b>Moozaq</b>
+        <span>Mood tuner</span>
+        <span class="lamp"><i></i>Tuned</span>
+      </div>
+      <div class="dial" data-dial style={`--glow-x:${glowX(pos[0])}%`}>
+        <div class="stations" aria-hidden="true">
+          {moods.map((m, i) => (
+            <span class:list={["station", { on: i === 0 }]} style={`left:${pos[i]}%`} data-station>{m.preset}</span>
+          ))}
+        </div>
+        <div class="scale"></div>
+        <span class="needle" data-needle aria-hidden="true" style={`--needle-x:${pos[0]}%`}></span>
+      </div>
+      <div class="controls-row">
+        <div class="presets" role="radiogroup" aria-label="Moods">
+          {moods.map((m, i) => (
+            <button
+              type="button"
+              class="preset"
+              role="radio"
+              aria-label={m.name}
+              aria-checked={i === 0 ? "true" : "false"}
+              tabindex={i === 0 ? 0 : -1}
+              data-preset
+            >{m.preset}</button>
+          ))}
+        </div>
+        <div class="knob-wrap">
+          <button
+            class="knob"
+            type="button"
+            role="slider"
+            aria-label="Tuning"
+            aria-valuemin="1"
+            aria-valuemax={n}
+            aria-valuenow="1"
+            aria-valuetext={moods[0].name}
+            data-knob
+          ><span class="rot"></span></button>
+          <span>Tuning</span>
+        </div>
+      </div>
+    </div>
+
+    <div aria-live="polite">
+      {moods.map((m, i) => (
+        <div class="tuned" data-panel hidden={i !== 0}>
+          <div class="tuned-copy">
+            <p class="label">Now tuned to</p>
+            <div class="tuned-name">{m.name}</div>
+            <p class="tuned-line">{m.line}</p>
+            <p class="tuned-total">A glimpse of this mood</p>
+          </div>
+          <div class="posters">
+            {m.vibes.map((v) => (
+              <figure class="poster">
+                <div class="poster-frame">
+                  <img src={art(v.id)} alt={`${v.label}, by ${v.creator}`} width="1280" height="720" loading="lazy" decoding="async" />
+                </div>
+              </figure>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  const root = document.querySelector<HTMLElement>("[data-tuner]");
+  if (root) {
+    const q = <T extends Element>(s: string) => [...root.querySelectorAll<T>(s)];
+    const stations = q<HTMLElement>("[data-station]");
+    const presets = q<HTMLButtonElement>("[data-preset]");
+    const panels = q<HTMLElement>("[data-panel]");
+    const needle = root.querySelector<HTMLElement>("[data-needle]")!;
+    const dial = root.querySelector<HTMLElement>("[data-dial]")!;
+    const knob = root.querySelector<HTMLButtonElement>("[data-knob]")!;
+    const rot = knob.firstElementChild as HTMLElement;
+    const receiver = root.querySelector<HTMLElement>("[data-receiver]")!;
+
+    const n = presets.length;
+    const pos = presets.map((_, i) => (100 * (i + 0.5)) / n); // station position along the scale, %
+    const step = 240 / (n - 1);
+    const ang = presets.map((_, i) => -120 + i * step); // knob angle per station, deg
+    let current = 0;
+    let timer: number | undefined;
+
+    const tune = (i: number) => {
+      if (i === current) return;
+      current = i;
+      needle.style.setProperty("--needle-x", `${pos[i]}%`);
+      dial.style.setProperty("--glow-x", `${3 + pos[i] * 0.94}%`);
+      rot.style.setProperty("--turn", `${ang[i]}deg`);
+      knob.setAttribute("aria-valuenow", String(i + 1));
+      knob.setAttribute("aria-valuetext", presets[i].getAttribute("aria-label") ?? "");
+      stations.forEach((s, j) => s.classList.toggle("on", j === i));
+      presets.forEach((b, j) => {
+        b.setAttribute("aria-checked", j === i ? "true" : "false");
+        b.tabIndex = j === i ? 0 : -1;
+      });
+      panels.forEach((p, j) => (p.hidden = j !== i));
+      receiver.classList.add("tuning");
+      clearTimeout(timer);
+      timer = window.setTimeout(() => receiver.classList.remove("tuning"), 450);
+    };
+
+    stations.forEach((s, i) => s.addEventListener("click", () => tune(i)));
+    presets.forEach((b, i) => b.addEventListener("click", () => tune(i)));
+
+    root.querySelector(".presets")!.addEventListener("keydown", (e) => {
+      const k = (e as KeyboardEvent).key;
+      const delta = ({ ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 } as Record<string, number>)[k];
+      let to: number | null = null;
+      if (delta) to = (current + delta + n) % n;
+      if (k === "Home") to = 0;
+      if (k === "End") to = n - 1;
+      if (to !== null) {
+        e.preventDefault();
+        tune(to);
+        presets[to].focus();
+      }
+    });
+
+    knob.addEventListener("keydown", (e) => {
+      const delta = ({ ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 } as Record<string, number>)[e.key];
+      if (delta) {
+        e.preventDefault();
+        tune(Math.min(n - 1, Math.max(0, current + delta)));
+      } else if (e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        tune(e.key === "Home" ? 0 : n - 1);
+      }
+    });
+
+    // Turn the knob by dragging around its centre; a plain click steps to the next mood.
+    let drag: { moved: boolean; x: number; y: number } | null = null;
+    knob.addEventListener("pointerdown", (e) => {
+      knob.setPointerCapture(e.pointerId);
+      drag = { moved: false, x: e.clientX, y: e.clientY };
+    });
+    knob.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) drag.moved = true;
+      if (!drag.moved) return;
+      const r = knob.getBoundingClientRect();
+      const a = (Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180) / Math.PI;
+      const clamped = Math.max(-135, Math.min(135, a));
+      tune(Math.max(0, Math.min(n - 1, Math.round((clamped + 120) / step))));
+    });
+    knob.addEventListener("pointerup", () => {
+      if (drag && !drag.moved) tune((current + 1) % n);
+      drag = null;
+    });
+    knob.addEventListener("pointercancel", () => (drag = null));
+  }
+</script>

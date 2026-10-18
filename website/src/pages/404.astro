@@ -3,11 +3,9 @@ import Base from "../layouts/Base.astro";
 ---
 
 <Base title="Page not found — Moozaq">
-  <main class="wrap section" id="content">
-    <a class="wordmark" href="/">
-      <img src="/brand/wordmark-navy.svg" alt="Moozaq" width="420" height="120" />
-    </a>
-    <h1>That page is not here.</h1>
+  <main class="wrap section not-found" id="content">
+    <a href="/" aria-label="Moozaq home"><span class="wm"></span></a>
+    <h2>That page is not here.</h2>
     <p><a class="text-link" href="/">Back to Moozaq</a></p>
   </main>
 </Base>

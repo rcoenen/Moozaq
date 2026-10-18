@@ -1,0 +1,42 @@
+---
+/** Illustration of Moozaq for Mac on a MacBook, following the desktop app's layout. */
+import { art, featured } from "../data/site";
+
+const now = featured.nowPlaying;
+---
+
+<div class="macbook" aria-hidden="true">
+  <div class="mac-screen">
+    <div class="mac-app">
+      <div class="mac-titlebar"><i></i><i></i><i></i><span>Moozaq</span></div>
+      <div class="mac-body">
+        <div class="mac-head"><span class="wm"></span><p>Find your mood. Let it run.</p><b>Channels</b></div>
+        {featured.macRows.map((row) => (
+          <div class="mac-row">
+            <h5>{row.mood}</h5>
+            <div class="mac-cards">
+              {row.vibes.map((v) => (
+                <div class="mac-card"><img src={art(v.id)} alt="" width="1280" height="720" loading="lazy" decoding="async" /><b>{v.label}</b></div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div class="mac-player">
+        <div class="mac-now">
+          <img src={art(now.id)} alt="" width="1280" height="720" loading="lazy" decoding="async" />
+          <div><b>{now.label}</b><span>{now.creator}</span></div>
+        </div>
+        <div class="mac-mid">
+          <div class="controls"><i class="prev"></i><span class="pause"></span><i class="next"></i></div>
+          <div class="bar"></div>
+        </div>
+        <div class="mac-right">
+          <span class="cast-chip"><svg><use href="#i-group"></use></svg>Downstairs</span>
+          <div class="vol"><svg><use href="#i-vol"></use></svg><div class="bar"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="mac-base"></div>
+</div>
