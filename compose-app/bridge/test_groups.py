@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 from types import SimpleNamespace
-from groups import GroupMonitor
+from groups import GroupMonitor, scale_group_volumes
 
 class GroupDiagnostics(unittest.TestCase):
     def setUp(self):
@@ -56,7 +56,73 @@ class GroupDiagnostics(unittest.TestCase):
         member.quit_app.assert_not_called()
         member.media_controller.stop.assert_not_called()
 
-class MemberVolumeTests(unittest.TestCase):
+class GroupVolumeTests(unittest.TestCase):
+    def test_scaling_preserves_member_ratio(self):
+        self.assertEqual([.3, .6], scale_group_volumes([.2, .4], .45))
+        self.assertEqual([0.0, 0.0], scale_group_volumes([.2, .4], 0))
+        self.assertEqual([.3, .3], scale_group_volumes([0, 0], .3))
+        self.assertEqual([0.0, 1.0], scale_group_volumes([0, .8], 1.0))
+
+    def test_average_waits_for_every_member(self):
+        monitor = GroupMonitor(Mock())
+        monitor.view = {'members': [
+            {'id': 'bedroom', 'connected': True, 'volume': .2},
+            {'id': 'kitchen', 'connected': True, 'volume': .4},
+        ]}
+        self.assertAlmostEqual(.3, monitor.average_volume())
+        monitor.view['members'][1]['volume'] = None
+        self.assertIsNone(monitor.average_volume())
+        monitor.view['members'][1]['volume'] = .4
+        monitor.view['members'][1]['connected'] = False
+        self.assertIsNone(monitor.average_volume())
+
+    def test_group_volume_writes_every_member_proportionally(self):
+        import threading
+        lab = Mock(generation=0)
+        lab.playback_gate = threading.RLock()
+        monitor = GroupMonitor(lab)
+        monitor.cast = lab.cast
+        monitor.controller = Mock(members=['bedroom', 'kitchen'])
+        monitor.view = {'members': [
+            {'id': 'bedroom', 'connected': True, 'volume': .2},
+            {'id': 'kitchen', 'connected': True, 'volume': .4},
+        ]}
+        members = {}
+        for uid, level in (('bedroom', .2), ('kitchen', .4)):
+            member = Mock(spec=['status', 'socket_client', 'cast_info', 'media_controller', 'set_volume', 'start_app'])
+            member.cast_info.friendly_name = uid
+            member.socket_client.is_connected = True
+            member.status.volume_level = level
+            member.status.volume_muted = False
+            member.media_controller.status = SimpleNamespace(player_state='PLAYING')
+            def set_level(value, uid=uid, member=member):
+                member.status.volume_level = value
+                with monitor.lock:
+                    monitor.receipts[uid] = monitor.receipts.get(uid, 0) + 1
+            member.set_volume.side_effect = set_level
+            monitor.members[uid] = member
+            members[uid] = member
+        monitor.set_group_volume(.45)
+        self.assertAlmostEqual(.3, members['bedroom'].status.volume_level, places=2)
+        self.assertAlmostEqual(.6, members['kitchen'].status.volume_level, places=2)
+        members['bedroom'].media_controller.play_media.assert_not_called()
+        members['kitchen'].media_controller.play_media.assert_not_called()
+
+    def test_incomplete_group_is_not_written(self):
+        import threading
+        lab = Mock(generation=0)
+        lab.playback_gate = threading.RLock()
+        monitor = GroupMonitor(lab)
+        monitor.cast = lab.cast
+        monitor.controller = Mock(members=['bedroom', 'kitchen'])
+        monitor.view = {'members': [
+            {'id': 'bedroom', 'connected': True, 'volume': .2},
+            {'id': 'kitchen', 'connected': True, 'volume': None},
+        ]}
+        with self.assertRaises(RuntimeError):
+            monitor.set_group_volume(.45)
+
+
     def setUp(self):
         import threading
         self.lab = Mock(generation=0)

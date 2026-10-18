@@ -129,7 +129,13 @@ class PlayerStore(private val backend: PlayerBackend, private val scope: Corouti
                 mutable.update { it.copy(snapshot=snapshot, membership=reconcileMembership(it.membership, snapshot)) }
             } catch (e: Exception) {
                 if(e is CancellationException) throw e
-                mutable.update { it.copy(membership=it.membership?.copy(error=e.message ?: "Speaker selection was not confirmed.")) }
+                val message=e.message ?: "Speaker selection was not confirmed."
+                mutable.update { current->
+                    current.copy(
+                        membership=null,
+                        snapshot=current.snapshot.copy(membership=current.snapshot.membership.copy(error=message, pending=null)),
+                    )
+                }
             }
         }
     }

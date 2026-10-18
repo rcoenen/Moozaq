@@ -17,7 +17,7 @@ from seeking import SeekTracker
 from catalog import Catalog
 from following import TemporaryGroupFollower
 from membership import MembershipService
-from outputs import OutputMonitor
+from outputs import OutputMonitor, temporary_group
 from recovery import RemotePreferences, SessionRecovery
 from inventory import DeviceInventory
 
@@ -63,12 +63,23 @@ class Bridge:
         receiver['seek_revision'] = self.seek_revision
         receiver['transport_revision'] = self.transport_revision
         observed = next((r for r in self.recovery_rows() if r['id'] == self.target), None)
+        group_target = getattr(self.lab.cast, 'cast_type', None) == 'group'
+        group_average = self.group_monitor.average_volume() if (self.group_monitor and group_target) else None
         synchronized = bool(observed and observed['fresh'] and observed['state'] != 'UNKNOWN'
                             and self.lab.selected_id == self.target)
         if synchronized and status.get('connected'):
             for key in ('state', 'title', 'source', 'position', 'duration'):
                 receiver[key] = observed.get(key)
-            receiver['volume'] = round(observed['volume'] * 100) if observed.get('volume') is not None else None
+            if group_average is not None:
+                receiver['volume'] = round(group_average * 100)
+            elif group_target:
+                # A group's own device volume is not the members' average. Until every member
+                # is readable, do not offer a main slider that claims otherwise.
+                receiver['volume'] = None
+            elif observed.get('volume') is not None:
+                receiver['volume'] = round(observed['volume'] * 100)
+            else:
+                receiver['volume'] = None
         elif status.get('connected'):
             receiver.update(connected=False, state='UNKNOWN', volume=None)
         receiver.update(self.expiry_view(status, observed if synchronized else None))
@@ -80,8 +91,11 @@ class Bridge:
         infos = {str(info.uuid): info for info in discovered_cast_infos(self.lab.browser)}
         devices = self.inventory.snapshot(infos.values())
         temporary = self.membership.temporary_ids | self.outputs.temporary_ids()
+        saved = self.outputs.saved_group_ids()
+        saved_known = self.outputs.topology_loaded()
         for device in devices:
-            device['temporary'] = device['id'] in temporary
+            device['temporary'] = temporary_group(device['id'], device.get('cast_type'),
+                                                  temporary, saved, saved_known)
         return {**self.catalog.status(), 'devices': devices,
                 'receiver': receiver, 'target': self.target, 'busy': self.busy,
                 'connecting': self.connecting or bool(status.get('reconnecting')) or recovering or bool(self.target and not synchronized), 'message': self.message,
@@ -242,6 +256,7 @@ class Bridge:
                 if self.busy:
                     raise ValueError('Wait for the current operation or press Stop.')
                 action = self.membership.prepare(request.get('devices'), request.get('token'))
+                self.outputs.invalidate_topology()
                 self.start('Changing playback speakers', action)
         elif op == 'dismiss_membership':
             self.membership.dismiss()
@@ -281,11 +296,15 @@ class Bridge:
             cast = self.lab.cast
             if cast is None:
                 raise ValueError('Connect to a speaker first.')
-            if self.volume_tracker is None or self.volume_tracker.cast is not cast:
-                self.volume_tracker = VolumeTracker(cast)
-            tracker = self.volume_tracker
             def adjust_volume():
-                tracker.set_confirmed(self.lab, request['value'])
+                if getattr(cast, 'cast_type', None) == 'group' and self.group_monitor is not None:
+                    # The group volume is the confirmed average of its members; each member is
+                    # written and confirmed individually, preserving their relative balance.
+                    self.group_monitor.set_group_volume(value)
+                else:
+                    if self.volume_tracker is None or self.volume_tracker.cast is not cast:
+                        self.volume_tracker = VolumeTracker(cast)
+                    self.volume_tracker.set_confirmed(self.lab, value)
                 self.volume_revision += 1
             self.start('Adjusting volume', adjust_volume)
         elif op == 'seek':

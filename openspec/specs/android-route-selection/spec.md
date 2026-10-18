@@ -7,7 +7,7 @@ Keeps Android destination selection dependable and understandable when Cast rout
 
 ### Requirement: Pending destination joins reconcile one route change
 
-When an explicitly selected destination's pending initial join ends with `CASTING_ROUTE_CHANGED`, the system SHALL keep the requested destination pending and attempt at most one route-join reconciliation. The reconciliation SHALL occur only when the original destination and operation generation remain current, the target is still available with the same device identity, the phone route is selected rather than another Cast destination, and no SDK session is active. It SHALL NOT issue media, volume, membership, or source-resolution operations.
+When an explicitly selected destination's pending initial join ends with `CASTING_ROUTE_CHANGED`, the system SHALL keep the requested destination pending and attempt at most one route-join reconciliation.
 
 #### Scenario: Eligible interrupted join is reconciled
 
@@ -18,6 +18,15 @@ When an explicitly selected destination's pending initial join ends with `CASTIN
 
 - **WHEN** the destination has already used its automatic route-join reconciliation and the join fails again
 - **THEN** the system SHALL show an unconfirmed destination state with deliberate manual retry and SHALL NOT retry automatically
+
+### Requirement: Reconciliation requires fresh route and SDK state
+
+The reconciliation SHALL occur only when the original destination and operation generation remain current, the target is still available with the same device identity, the phone route is selected rather than another Cast destination, and no SDK session is active. It SHALL NOT issue media, volume, membership, or source-resolution operations.
+
+#### Scenario: Stale or replaced state skips reconciliation
+
+- **WHEN** any required destination, generation, target identity, selected-route, foreground, or SDK-session guard is not satisfied
+- **THEN** the system SHALL NOT select the route and SHALL NOT issue media, volume, membership, or source-resolution operations
 
 ### Requirement: Route changes cannot reclaim replaced or attached sessions
 

@@ -11,7 +11,9 @@ import org.json.JSONObject
 
 /** Passive local Nest metadata; never opens a Cast media channel or launches an application. */
 internal object ReceiverTopology {
-    fun dynamicGroups(address:InetAddress):Set<String> {
+    data class Groups(val dynamic:Set<String>,val configured:Set<String>,val configuredKnown:Boolean)
+
+    fun groups(address:InetAddress):Groups {
         require(address.isSiteLocalAddress || address.isLinkLocalAddress) {"Receiver must be on the local network."}
         // Nest's local setup endpoint has a self-signed certificate. This trust context is
         // scoped to this one discovered LAN IP, carries no credentials and never redirects.
@@ -36,8 +38,13 @@ internal object ReceiverTopology {
                 }
                 result.toString()
             }
-            val rows=JSONObject(text).optJSONObject("multizone")?.optJSONArray("dynamic_groups")
-            return (0 until (rows?.length()?:0)).mapNotNull {rows?.optJSONObject(it)?.optString("uuid")}.map {canonicalDeviceId(it)}.toSet()
+            val multizone=JSONObject(text).optJSONObject("multizone")
+            fun arrayIds(name:String):Set<String>?=multizone?.optJSONArray(name)?.let {rows->
+                (0 until rows.length()).mapNotNull {rows.optJSONObject(it)?.optString("uuid")}
+                    .map {canonicalDeviceId(it)}.toSet()
+            }
+            val configured=arrayIds("configured_groups") ?: arrayIds("groups")
+            return Groups(arrayIds("dynamic_groups").orEmpty(),configured.orEmpty(),configured!=null)
         } finally {connection.disconnect()}
     }
     fun canonicalDeviceId(id:String)=id.substringAfter("cast:").replace("-","").lowercase()

@@ -104,6 +104,20 @@ class BridgeSafety(unittest.TestCase):
                 bridge.dispatch({'op': 'volume', 'value': value})
         lab.command.assert_not_called()
 
+    def test_group_volume_uses_the_member_transaction(self):
+        from types import SimpleNamespace
+        bridge, lab = self.make()
+        lab.cast = SimpleNamespace(cast_type='group')
+        bridge.group_monitor = Mock()
+        bridge.volume_tracker = Mock()
+        revision = bridge.volume_revision
+        with patch('server.threading.Thread') as thread:
+            bridge.dispatch({'op': 'volume', 'value': .45})
+            thread.call_args.kwargs['target']()
+        bridge.group_monitor.set_group_volume.assert_called_once_with(.45)
+        bridge.volume_tracker.set_confirmed.assert_not_called()
+        self.assertEqual(bridge.volume_revision, revision + 1)
+
     def test_recovery_follows_verified_session_without_playback_commands(self):
         from types import SimpleNamespace
         from test_recovery import observed

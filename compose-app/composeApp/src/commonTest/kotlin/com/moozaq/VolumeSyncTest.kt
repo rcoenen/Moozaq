@@ -31,4 +31,11 @@ class VolumeSyncTest {
         assertTrue(failed.failed)
         assertEquals(.7,failed.value)
     }
+
+    @Test fun mainVolumeCannotStartWhileMembershipIsPending() {
+        val ready=Snapshot(receiver=Receiver(connected=true,volume=50))
+        assertTrue(canAdjustSessionVolume(PlayerUiState(snapshot=ready)))
+        val pending=PlayerUiState(snapshot=ready.copy(membership=PlaybackMembership(pending=listOf("bedroom","fridge"))))
+        assertFalse(canAdjustSessionVolume(pending))
+    }
 }

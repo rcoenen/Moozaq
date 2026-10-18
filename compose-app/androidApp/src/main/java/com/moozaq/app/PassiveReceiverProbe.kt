@@ -59,12 +59,12 @@ internal object PassiveReceiverProbe {
 
 /** Small CastMessage protobuf envelope; unknown fields are skipped, malformed frames rejected. */
 internal object CastStatusWire {
-    fun encode(namespace:String,payload:String):ByteArray {
+    fun encode(namespace:String,payload:String,source:String="moozaq-status",destination:String="receiver-0"):ByteArray {
         val out=ByteArrayOutputStream()
         fun variable(value:Int) {var v=value;while(v>127) {out.write((v and 127) or 128);v=v ushr 7};out.write(v)}
         fun text(field:Int,value:String) {val b=value.toByteArray(Charsets.UTF_8);variable((field shl 3) or 2);variable(b.size);out.write(b)}
         out.write(8);out.write(0) // protocol_version CASTV2_1_0
-        text(2,"moozaq-status");text(3,"receiver-0");text(4,namespace)
+        text(2,source);text(3,destination);text(4,namespace)
         out.write(40);out.write(0) // payload_type STRING
         text(6,payload)
         return out.toByteArray()

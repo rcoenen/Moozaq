@@ -6,10 +6,19 @@ from engine import install_passive_status, discovered_cast_infos
 from pychromecast.controllers.multizone import MultizoneController
 
 
+def scale_group_volumes(levels, target):
+    """Preserve the members' ratios while making their average the requested level."""
+    if not levels:
+        raise ValueError('No speakers.')
+    target = max(0.0, min(1.0, float(target)))
+    average = sum(levels) / len(levels)
+    scaled = [target] * len(levels) if average <= 0 else [level * target / average for level in levels]
+    return [round(max(0.0, min(1.0, value)) * 100) / 100 for value in scaled]
+
+
 class MemberListener:
     def __init__(self, monitor, uid, cast):
         self.monitor, self.uid, self.cast = monitor, uid, cast
-
     def new_media_status(self, status):
         self.monitor.record_member(self.uid, self.cast, status)
 
@@ -33,6 +42,7 @@ class GroupMonitor:
         self.states = {}
         self.receipts = {}
         self.volume_revisions = {}
+        self.volume_lock = threading.RLock()
         self.closed = threading.Event()
         self.last_topology = None
         self.view = None
@@ -59,7 +69,45 @@ class GroupMonitor:
         if previous != state:
             self.lab.log('group-member-state', str(state))
 
+    def average_volume(self):
+        """The confirmed average of the current members, or None until every member is readable."""
+        with self.lock:
+            if not self.view or len(self.view['members']) < 2:
+                return None
+            levels = []
+            for row in self.view['members']:
+                state = self.states.get(row['id'], row)
+                if not state.get('connected') or not isinstance(state.get('volume'), (int, float)):
+                    return None
+                levels.append(state['volume'])
+            return sum(levels) / len(levels)
+
+    def set_group_volume(self, value, timeout=4):
+        if not isinstance(value, (int, float)) or not 0 <= value <= 1:
+            raise ValueError('Volume must be between 0 and 1.')
+        with self.lock:
+            if not self.view or len(self.view['members']) < 2:
+                raise RuntimeError('Speaker group is not available.')
+            ids = list(self.controller.members) if self.controller else []
+            rows = {row['id']: dict(self.states.get(row['id'], row)) for row in self.view['members']}
+            levels = []
+            for uid in ids:
+                row = rows.get(uid)
+                if not row or not row.get('connected') or not isinstance(row.get('volume'), (int, float)):
+                    raise RuntimeError('Wait for speaker volumes.')
+                levels.append(row['volume'])
+        if len(levels) < 2:
+            raise RuntimeError('Speaker group is not available.')
+        targets = scale_group_volumes(levels, value)
+        with self.volume_lock:
+            for uid, target in zip(ids, targets):
+                self.set_member_volume(uid, target, timeout=timeout)
+
     def set_member_volume(self, uid, value, timeout=6):
+        with self.volume_lock:
+            return self._set_member_volume(uid, value, timeout)
+
+    def _set_member_volume(self, uid, value, timeout=6):
         if not isinstance(value, (float, int)) or not 0 <= value <= 1:
             raise ValueError('Volume must be between 0 and 1.')
         group, generation = self.lab.cast, self.lab.generation

@@ -8,8 +8,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,22 +55,14 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
             }
         },
     ) {
-        Column(Modifier.fillMaxWidth().heightIn(max = Dimens.SheetMaxHeight)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(0.88f)) {
             Text(
                 "Cast to",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 12.dp),
             )
-            if (liveLocked) {
-                Text(
-                    "Adding a speaker live is not available on this session. Choose a saved speaker group and the mix moves there.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 12.dp),
-                )
-            }
             LazyColumn(
-                modifier = Modifier.weight(1f, fill = false).padding(horizontal = Dimens.ScreenMargin),
+                modifier = Modifier.weight(1f).padding(horizontal = Dimens.ScreenMargin),
                 verticalArrangement = Arrangement.spacedBy(Dimens.DeviceCardGap),
             ) {
                 items(devices, key = { it.id }) { device ->
@@ -73,7 +72,7 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
                         onMove = { moving = device },
                     )
                 }
-                item(key = "status") { CastToStatus(store, ui) }
+                item(key = "status") { CastToStatus(store, ui, liveLocked) }
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -85,7 +84,7 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
             title = { Text("${device.name} cannot join live", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Text(
-                    "This session runs on a single speaker, so Android cannot add another one to it. Choose a saved speaker group to play on several speakers.",
+                    "This session does not allow adding a speaker live. Choose a saved speaker group to play on several speakers.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
@@ -133,13 +132,31 @@ private fun CastToRow(
     val destination = usesDestinationCheckbox(ui, device) ||
         deviceKind(device) in listOf(DeviceKind.TV, DeviceKind.DISPLAY, DeviceKind.CAST)
     val request = ui.destination?.takeIf { it.id == device.id }
-    val checked = if (destination) destinationChecked(ui, device.id) else device.id in requestedMembers(ui)
+    val requested = requestedMembers(ui)
+    val checked = if (destination) destinationChecked(ui, device.id) else device.id in requested
     val changingMember = membershipPending(ui) && checked != (device.id in s.membership.members)
+    val leaving = !destination && leavingMember(membershipPending(ui), device.id in s.membership.members, device.id in requested)
     val stopping = checked && ui.transport?.expected == "IDLE"
+    val disconnecting = leaving || stopping
     val pending = request != null || (selected && s.connecting) || changingMember || stopping
     val failed = request?.failed == true || (changingMember && membershipError(ui) != null) ||
         (stopping && ui.transport?.failed == true)
     val foreground = if (checked) colors.onSurface else colors.onSurfaceVariant
+    val reduced = LocalReducedMotion.current
+    val fadeTransition = rememberInfiniteTransition()
+    val fadeAlpha by fadeTransition.animateFloat(
+        initialValue = .45f,
+        targetValue = .75f,
+        animationSpec = infiniteRepeatable(
+            tween(Motion.PendingPulseMs, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse,
+        ),
+    )
+    val rowAlpha = when {
+        !disconnecting -> 1f
+        reduced -> .5f
+        else -> fadeAlpha
+    }
     val groupPlaying = deviceKind(device) == DeviceKind.GROUP && selected &&
         s.receiver.state in listOf("PLAYING", "PAUSED", "BUFFERING")
     val liveLocked = playback.session && !s.membership.available &&
@@ -155,6 +172,8 @@ private fun CastToRow(
     val detail = when {
         !device.available -> "Unavailable"
         failed -> "Not confirmed"
+        stopping -> "Stopping…"
+        leaving -> "Disconnecting…"
         pending -> "Pending confirmation"
         volume?.failed == true -> "Volume not confirmed"
         volume != null -> "Syncing volume…"
@@ -167,7 +186,8 @@ private fun CastToRow(
     val current = drag ?: volume?.value?.toFloat() ?: (level ?: 0.0).toFloat()
     val shape = RoundedCornerShape(Dimens.DeviceCardCorner)
     Row(
-        Modifier.fillMaxWidth()
+        Modifier.alpha(rowAlpha)
+            .fillMaxWidth()
             .clip(shape)
             .background(if (checked) colors.primary.copy(alpha = .10f) else colors.surfaceContainer)
             .border(
@@ -219,7 +239,8 @@ private fun CastToRow(
                     }
                     drag = null
                 },
-                enabled = canAdjustOutputVolume(s, output, selected, volume),
+                enabled = !disconnecting && !(selected && membershipPending(ui)) &&
+                    canAdjustOutputVolume(s, output, selected, volume),
                 pending = volume != null && !volume.failed,
                 failed = volume?.failed == true,
                 trackHeight = Dimens.VolumeTrack,
@@ -237,9 +258,17 @@ private fun CastToRow(
 }
 
 @Composable
-private fun CastToStatus(store: PlayerStore, ui: PlayerUiState) {
+private fun CastToStatus(store: PlayerStore, ui: PlayerUiState, liveLocked: Boolean) {
     val colors = MaterialTheme.colorScheme
     val failure = membershipError(ui)
+    if (liveLocked) {
+        Text(
+            "Adding a speaker live is not available on this session. Choose a saved speaker group and the mix moves there.",
+            Modifier.padding(8.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant,
+        )
+    }
     if (ui.destination?.failed == true) {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(

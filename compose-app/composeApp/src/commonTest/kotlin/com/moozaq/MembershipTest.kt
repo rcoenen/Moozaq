@@ -42,12 +42,16 @@ class MembershipTest {
         assertNull(reconcileMembership(request,matches.copy(target="temporary-group",membership=matches.membership.copy(revision=5))))
     }
 
-    @Test fun failureRetainsDesiredCheckmarksEvenAfterReceiverTransfer() {
+    @Test fun failureClearsTheUnfinishedCheckAndKeepsTheError() {
         val request=PendingMembership(setOf("kitchen", "bedroom"),4)
-        val failed=initial.copy(target="temporary-group",membership=initial.membership.copy(error="Membership was not confirmed."))
-        val result=reconcileMembership(request,failed)!!
-        assertNotNull(result.error)
-        assertEquals(request.members,result.members)
+        val failed=initial.copy(target="temporary-group",membership=initial.membership.copy(error="Speaker selection was not confirmed.", pending=null))
+        assertNull(reconcileMembership(request, failed))
+        val ui=PlayerUiState(snapshot=failed)
+        assertEquals(setOf("kitchen"), requestedMembers(ui))
+        assertEquals("Speaker selection was not confirmed.", membershipError(ui))
+        assertFalse(membershipPending(ui))
+        val inflight=initial.copy(membership=initial.membership.copy(error="Speaker selection was not confirmed.", pending=listOf("kitchen", "bedroom")))
+        assertEquals(request.members, reconcileMembership(request, inflight)!!.members)
         val expired=reconcileMembership(request.copy(started=TimeSource.Monotonic.markNow()-46.seconds),initial)!!
         assertNotNull(expired.error)
         assertEquals(request.members,expired.members)
@@ -58,5 +62,12 @@ class MembershipTest {
         assertEquals(setOf("kitchen", "bedroom"),requestedMembers(ui))
         assertTrue(membershipPending(ui))
         assertEquals("Not confirmed",membershipError(ui))
+    }
+
+    @Test fun confirmedMemberExcludedByPendingRequestIsLeaving() {
+        assertTrue(leavingMember(pending=true,confirmed=true,requested=false))
+        assertFalse(leavingMember(pending=true,confirmed=false,requested=true))
+        assertFalse(leavingMember(pending=true,confirmed=true,requested=true))
+        assertFalse(leavingMember(pending=false,confirmed=true,requested=false))
     }
 }

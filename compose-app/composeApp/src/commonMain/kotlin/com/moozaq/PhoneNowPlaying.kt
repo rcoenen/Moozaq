@@ -215,5 +215,5 @@ fun canAdjustSessionVolume(ui: PlayerUiState): Boolean {
     val s = ui.snapshot
     val request = ui.mainVolume
     return s.receiver.connected && s.receiver.volume != null && !s.busy && !s.connecting &&
-        (request == null || request.failed)
+        !membershipPending(ui) && (request == null || request.failed)
 }

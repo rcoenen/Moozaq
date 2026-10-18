@@ -125,7 +125,7 @@ private class AboveCastChip(private val gap:Int): PopupPositionProvider {
         var drag by remember {mutableStateOf<Float?>(null)}
         Slider(value=drag ?: (volume?.value?:level?:0.0).toFloat().coerceIn(0f,1f),onValueChange={drag=it},
             onValueChangeFinished={drag?.let {if(selected) store.mainVolume(it.toDouble()) else store.outputVolume(device.id,it.toDouble())};drag=null},
-            enabled=canAdjustOutputVolume(s,output,selected,volume),colors=pendingSliderColors(volume!=null,volume?.failed==true),
+            enabled=canAdjustOutputVolume(s,output,selected,volume)&&!(selected&&membershipPending(ui)),colors=pendingSliderColors(volume!=null,volume?.failed==true),
             modifier=Modifier.weight(1f).height(44.dp).semantics {contentDescription="${device.name} volume";stateDescription=if(volume?.failed==true) "Not confirmed; adjust to retry" else if(volume!=null) "Pending confirmation" else if(level==null) "Unavailable" else "Confirmed"})
     }
 }

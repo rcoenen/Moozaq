@@ -13,6 +13,14 @@ ACTIVE = {'PLAYING', 'PAUSED', 'BUFFERING'}
 FRESH = 12
 
 
+def temporary_group(device_id, cast_type, temporary_ids, saved_ids, saved_groups_known):
+    """A group is hidden when known dynamic, or when it is not one of the saved groups and the
+    saved list is available. Without that list, fall back to the dynamic ids only."""
+    if device_id in temporary_ids:
+        return True
+    return cast_type == 'group' and saved_groups_known and device_id not in saved_ids
+
+
 class OutputListener:
     def __init__(self, entry):
         self.entry = entry
@@ -86,12 +94,26 @@ class OutputMonitor:
         self.lock = threading.RLock()
         self.entries = {}
         self.dynamic_groups = {}
+        self.saved_groups = set()
+        self.saved_groups_known = False
         self.topology_checked = {}
         self.closed = threading.Event()
 
     def temporary_ids(self):
         with self.lock:
             return set().union(*self.dynamic_groups.values()) if self.dynamic_groups else set()
+
+    def saved_group_ids(self):
+        with self.lock:
+            return set(self.saved_groups)
+
+    def topology_loaded(self):
+        with self.lock:
+            return self.saved_groups_known
+
+    def invalidate_topology(self):
+        with self.lock:
+            self.topology_checked.clear()
 
     def read_dynamic_groups(self, info):
         # Classify using receiver metadata, never friendly-name patterns such as '+ 1'.
@@ -106,9 +128,16 @@ class OutputMonitor:
             _, data = dial._get_status(info.services, self.lab.zconf,
                                       '/setup/eureka_info?params=multizone', True, 2, None)
             from membership import canonical
-            ids = {canonical(row['uuid']) for row in data.get('multizone', {}).get('dynamic_groups', [])}
+            multizone = data.get('multizone', {})
+            dynamic = {canonical(row['uuid']) for row in multizone.get('dynamic_groups', [])}
+            configured = multizone.get('configured_groups')
+            if configured is None:
+                configured = multizone.get('groups')
             with self.lock:
-                self.dynamic_groups[str(info.uuid)] = ids
+                self.dynamic_groups[str(info.uuid)] = dynamic
+                if configured is not None:
+                    self.saved_groups.update(canonical(row['uuid']) for row in configured)
+                    self.saved_groups_known = True
         except Exception:
             pass  # Keep known classification through an unavailable topology endpoint.
 

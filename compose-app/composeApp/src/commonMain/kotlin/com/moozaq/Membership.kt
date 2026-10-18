@@ -25,6 +25,9 @@ fun reconcileMembership(request: PendingMembership?, snapshot: Snapshot): Pendin
     request ?: return null
     val membership = snapshot.membership
     return when {
+        // A finished failure keeps the message and shows the last confirmed speakers.
+        // The 2026-10-17 Kitchen add left the new speaker checked after the phone had lost the session.
+        membership.error != null && membership.pending == null -> null
         membership.error != null -> request.copy(error = membership.error)
         membership.revision > request.revision && membership.pending == null &&
             membership.members.toSet() == request.members -> null
@@ -40,6 +43,9 @@ fun requestedMembers(ui: PlayerUiState): Set<String> = ui.membership?.members
 
 fun membershipError(ui: PlayerUiState): String? = ui.membership?.error ?: ui.snapshot.membership.error
 fun membershipPending(ui: PlayerUiState) = ui.membership != null || ui.snapshot.membership.pending != null
+
+/** A confirmed member that the pending request excludes is being removed, not merely unchecked. */
+fun leavingMember(pending: Boolean, confirmed: Boolean, requested: Boolean) = pending && confirmed && !requested
 
 fun canToggleMembership(ui: PlayerUiState, device: Device): Boolean {
     val s = ui.snapshot

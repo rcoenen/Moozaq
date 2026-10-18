@@ -95,7 +95,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
     Column(Modifier.width(width).height(60.dp)) {
     Slider(value=drag ?: request?.value?.toFloat() ?: (s.receiver.volume?:0)/100f,onValueChange={drag=it},
         onValueChangeFinished={drag?.let {store.mainVolume(it.toDouble())};drag=null},
-        enabled=s.receiver.connected&&!s.busy&&!s.connecting&&(request==null||request.failed),colors=pendingSliderColors(request!=null,request?.failed==true),
+        enabled=s.receiver.connected&&!s.busy&&!s.connecting&&!membershipPending(ui)&&(request==null||request.failed),colors=pendingSliderColors(request!=null,request?.failed==true),
         modifier=Modifier.width(width).height(44.dp).semantics {contentDescription=if(request?.failed==true) "Volume not confirmed; adjust to retry" else if(request!=null) "Volume pending" else "Volume"})
     Text(if(request?.failed==true) "Not confirmed" else if(request!=null) "Syncing…" else "",style=MaterialTheme.typography.labelMedium,color=if(request?.failed==true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
     }

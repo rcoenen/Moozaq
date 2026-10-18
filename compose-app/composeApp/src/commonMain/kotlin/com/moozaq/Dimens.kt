@@ -66,4 +66,5 @@ object Motion {
     const val CoverZoomMs = 300
     const val CoverScrimMs = 200
     const val FadeMs = 120
+    const val PendingPulseMs = 1400
 }

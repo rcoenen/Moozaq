@@ -3,7 +3,7 @@ import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-from outputs import OutputMonitor, OutputEntry, OutputListener, resolve_activity
+from outputs import OutputMonitor, OutputEntry, OutputListener, resolve_activity, temporary_group
 
 
 def row(uid, state='UNKNOWN', members=None, connected=True):
@@ -17,12 +17,22 @@ class OutputTests(unittest.TestCase):
         monitor=OutputMonitor(Mock())
         info=SimpleNamespace(uuid='physical',cast_type='audio',services=set())
         data={'multizone':{'dynamic_groups':[{'uuid':uid.replace('-','')}],
-                           'groups':[{'uuid':'saved-group'}]}}
+                           'configured_groups':[{'uuid':'11111111-1111-1111-1111-111111111111'}],
+                           'groups':[{'uuid':'11111111-1111-1111-1111-111111111111'}]}}
         with patch('outputs.dial._get_status',return_value=(None,data)) as query:
             monitor.read_dynamic_groups(info)
             monitor.read_dynamic_groups(info)
             query.assert_called_once()
         self.assertEqual(monitor.temporary_ids(),{uid})
+        self.assertIn('11111111-1111-1111-1111-111111111111',monitor.saved_group_ids())
+        self.assertTrue(monitor.topology_loaded())
+
+    def test_unknown_group_is_temporary_once_saved_groups_are_known(self):
+        self.assertTrue(temporary_group('unknown','group',set(),{'saved'},True))
+        self.assertFalse(temporary_group('saved','group',set(),{'saved'},True))
+        self.assertFalse(temporary_group('unknown','group',set(),set(),False))
+        self.assertTrue(temporary_group('dynamic','group',{'dynamic'},set(),False))
+        self.assertFalse(temporary_group('unknown','audio',set(),{'saved'},True))
 
     def test_terminated_monitor_connection_is_replaced_passively(self):
         lab = Mock()

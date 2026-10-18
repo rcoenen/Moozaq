@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
@@ -202,8 +203,20 @@ fun MzCheckbox(
     stateDescription: String? = null,
 ) {
     val colors = MaterialTheme.colorScheme
+    val reduced = LocalReducedMotion.current
+    val transition = rememberInfiniteTransition()
+    val pulse by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(Motion.PendingPulseMs, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse,
+        ),
+    )
+    val pendingTint = if (reduced) colors.onSurfaceVariant
+        else lerp(colors.onSurfaceVariant, colors.primary, pulse)
     val tint = when {
-        pending -> colors.onSurfaceVariant
+        pending -> pendingTint
         !enabled -> colors.outline
         else -> colors.primary
     }
