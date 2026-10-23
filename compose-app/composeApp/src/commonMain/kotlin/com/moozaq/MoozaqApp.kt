@@ -9,11 +9,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
@@ -38,7 +40,8 @@ val LocalBuildLabel = staticCompositionLocalOf<String?> { null }
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable private fun DesktopApp(store:PlayerStore,ui:PlayerUiState,library:List<Mix>,reducedMotion:Boolean,onReducedMotion:(Boolean)->Unit) {
     val eligible=remember(library) { library.filter { (it.duration ?: 0.0)>=3600.0 } }
-    val moods=remember(eligible) { eligible.groupBy { it.category }.toSortedMap() }
+    var query by remember { mutableStateOf("") }
+    val moods=remember(eligible,query) { searchMixes(eligible,query).groupBy { it.category }.toSortedMap() }
     var speakersOpen by remember { mutableStateOf(false) }
     var channelsOpen by remember { mutableStateOf(false) }
     val browse=rememberLazyListState()
@@ -48,9 +51,12 @@ val LocalBuildLabel = staticCompositionLocalOf<String?> { null }
             Row(Modifier.fillMaxWidth().height(56.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(20.dp)) {
                 Image(painterResource(Res.drawable.wordmark),"Moozaq",Modifier.width(220.dp).height(56.dp),contentScale=ContentScale.Fit)
                 Text("Find your mood. Let it run.",Modifier.weight(1f),color=c.onSurfaceVariant,style=MaterialTheme.typography.bodyLarge,maxLines=1)
+                SearchField(query,{query=it})
                 TextButton(onClick={channelsOpen=true}) { Text("Channels") }
             }
+            LaunchedEffect(query) { if(browse.layoutInfo.totalItemsCount>0) browse.scrollToItem(0) }
             if(eligible.isEmpty()) Text("Your hour-long mixes will appear here.",color=c.onSurfaceVariant)
+            else if(moods.isEmpty()) Text("No matches",color=c.onSurfaceVariant)
             LazyColumn(state=browse,modifier=Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                 moods.forEach { (name,mixes) ->
                     stickyHeader(key="heading:$name") {
@@ -70,4 +76,12 @@ val LocalBuildLabel = staticCompositionLocalOf<String?> { null }
         if(speakersOpen) Box(Modifier.fillMaxSize().background(c.scrim.copy(alpha=.45f)).clickable(interactionSource=remember {MutableInteractionSource()},indication=null) {speakersOpen=false})
         if(channelsOpen) ChannelsDialog(store,ui,reducedMotion,onReducedMotion,{channelsOpen=false})
     }
+}
+
+@Composable private fun SearchField(query:String,onQuery:(String)->Unit) {
+    OutlinedTextField(query,onQuery,
+        Modifier.width(360.dp).onPreviewKeyEvent { if(it.key==Key.Escape && it.type==KeyEventType.KeyDown && query.isNotEmpty()) { onQuery("");true } else false },
+        placeholder={Text("Search")},singleLine=true,shape=RoundedCornerShape(28.dp),
+        leadingIcon={UiIcon(Res.drawable.ui_search,modifier=Modifier.size(20.dp))},
+        trailingIcon={ if(query.isNotEmpty()) IconButton(onClick={onQuery("")}) { UiIcon(Res.drawable.ui_close,"Clear search",Modifier.size(20.dp)) } })
 }

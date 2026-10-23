@@ -15,3 +15,16 @@ val catalog = listOf(
 @Serializable data class CatalogChannel(val name: String, val url: String, val id: String? = null, val count: Int = 0, val error: String? = null, val refreshed: String? = null)
 @Serializable data class CatalogData(val channels: List<CatalogChannel> = emptyList(), val mixes: List<Mix> = emptyList())
 fun mergedCatalog(imported: List<Mix>) = (imported + catalog).distinctBy { it.id }
+
+/** Case- and accent-insensitive search over title, channel and mood; every word must match. */
+fun searchMixes(mixes: List<Mix>, query: String): List<Mix> {
+    val words = searchKey(query).split(' ').filter { it.isNotBlank() }
+    if (words.isEmpty()) return mixes
+    return mixes.filter { mix ->
+        val text = searchKey("${mix.title} ${mix.creator} ${mix.category}")
+        words.all { it in text }
+    }
+}
+private val accents = mapOf('à' to 'a','á' to 'a','â' to 'a','ã' to 'a','ä' to 'a','å' to 'a','ç' to 'c','è' to 'e','é' to 'e','ê' to 'e','ë' to 'e',
+    'ì' to 'i','í' to 'i','î' to 'i','ï' to 'i','ñ' to 'n','ò' to 'o','ó' to 'o','ô' to 'o','õ' to 'o','ö' to 'o','ù' to 'u','ú' to 'u','û' to 'u','ü' to 'u','ý' to 'y','ÿ' to 'y')
+private fun searchKey(text: String) = text.lowercase().map { accents[it] ?: if (it.isLetterOrDigit()) it else ' ' }.joinToString("")

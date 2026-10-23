@@ -666,3 +666,7 @@ Builds 0.6.1 to 0.6.9 (codes 20–28) were installed on the Pixel one after anot
 - a one-time, read-only startup follow of the single output playing a Moozaq-tagged mix when the remembered remote is idle.
 
 The owner reported 0.6.9 "works great" on the phone. Silent checks: 131 bridge tests, 68 desktop tests (including touch-driven sheet tests and Cast renders), 9 Android shim tests, `assembleDebug`, `lintDebug`. Not verified on the phone: the startup follow after a restart, the rejected-stream probe output (no rejection since 0.6.1), and the reconnect delay after the app returns from the background (still a few seconds of "Connecting…").
+
+### Mac search field (2026-10-23)
+
+Added a header search field to the desktop layout. 5 new search tests and the full desktop suite (73) pass; `createDistributable` succeeded. The relaunched app shows the field and rejoined the already-playing 3-speaker session without loading media. Typing in the field was not exercised by the agent: background UI control could not reach the Java window. The owner then tried it and confirmed search works.

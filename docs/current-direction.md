@@ -323,3 +323,7 @@ Evidence so far: discovery of all five speakers; play, pause, resume, seek and S
 The OpenSpec change `kotlin-cast-client` (a Kotlin port) is on hold. The `android-cast-recovery` and `android-route-selection` specs describe the parked SDK app, not this build.
 
 No built-in default speaker (2026-10-18). The bridge used to pick a device named "Bedroom speaker" when nothing was remembered, which only fit the owner's home. Now a first run connects to nothing until the user chooses a speaker, which is then remembered. The idle hint says to choose one, on the phone and on desktop. The `mac-spike` Tk reference app still has its own Bedroom default.
+
+### Search returns on the Mac (2026-10-23)
+
+Owner decision: add a search field to the Mac app first. This reverses the earlier "no search" decision for the desktop layout only. The field sits in the header and narrows the existing mood shelves by title, channel and mood. Matching ignores case and accents, and every typed word must match. The one-hour minimum still applies. Escape or × clears it. The phone layout is unchanged for now.
