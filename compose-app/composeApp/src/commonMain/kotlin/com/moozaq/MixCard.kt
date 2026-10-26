@@ -41,6 +41,9 @@ import com.moozaq.resources.*
         Box(Modifier.fillMaxWidth().height(if(compact) 113.dp else 135.dp).clip(RoundedCornerShape(topStart=12.dp,topEnd=12.dp))) {
             MixCover(mix,Modifier.fillMaxSize().graphicsLayer { scaleX=scale;scaleY=scale })
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=scrim)))
+            if(revealed || active) Box(Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                RatingControls(mix,ui,store)
+            }
             if(active) Surface(Modifier.align(Alignment.TopStart).padding(10.dp),shape=RoundedCornerShape(12.dp),color=c.surface.copy(alpha=.85f)) {
                 Row(Modifier.height(24.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                     Equalizer(paused || reduced)
@@ -48,8 +51,9 @@ import com.moozaq.resources.*
                 }
             }
             val awaiting=ui.transport!=null && ui.transport?.failed==false
-            val enabled=if(active) !awaiting && (canPause(ui.snapshot)||canResume(ui.snapshot)) else ui.destination==null && canRequestPlay(ui.snapshot,mix)
-            FilledIconButton(onClick={if(active) store.command(if(paused) "resume" else "pause") else store.play(mix)},enabled=enabled,
+            val canPlay=if(ui.speakerDraft!=null) canRequestDraftPlay(ui,mix) else canRequestPlay(ui.snapshot,mix)
+            val enabled=if(active) !awaiting && (canPause(ui.snapshot)||canResume(ui.snapshot)) else ui.destination==null && canPlay
+            FilledIconButton(onClick={if(active) store.command(if(paused) "resume" else "pause") else if(ui.speakerDraft!=null) store.playDraft(mix) else store.play(mix)},enabled=enabled,
                 modifier=Modifier.align(Alignment.BottomEnd).padding(10.dp).size(48.dp)
                     .graphicsLayer { alpha=reveal;translationY=6.dp.toPx()*(1-reveal);scaleX=.9f+.1f*reveal;scaleY=scaleX }
                     .semantics { contentDescription=if(starting) "Starting ${mix.title}" else if(active && !paused) "Pause ${mix.title}" else "Play ${mix.title}" },

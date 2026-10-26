@@ -1,12 +1,14 @@
 .DS_Store
 **/.gradle/
 **/build/
+**/.wrangler/
 **/local.properties
 .idea/
 *.iml
 **/.venv/
 **/__pycache__/
 mac-spike/data/
+compose-app/composeApp/mac-spike/
 
 # Local agent tool state and per-tool skill installs
 .agents/

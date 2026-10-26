@@ -19,6 +19,7 @@ Use Bedroom speaker for playback only when explicitly requested. Do not use Offi
 ## Repository map
 
 - `compose-app/`: Kotlin / Compose Multiplatform UI, desktop app, Android app and the Python Cast bridge (`bridge/`). Both apps run that same bridge: the Mac as a subprocess, Android in-process through Chaquopy (see `compose-app/androidApp/README.md`). The bridge still imports `mac-spike/engine.py`, so changes there reach both apps. The former Google Cast SDK Android app is parked on branch `android-google-cast-sdk`. See its README for build commands; preserve `mac-spike` as the working reference.
+- `compose-app/bridge/local_player.py`, `compose-app/bridge/local_relay.py` and `compose-app/composeApp/src/desktopMain/swift/MoozaqAudioPlayer.swift`: Mac-only local playback and its native AVPlayer helper plus a temporary loopback HLS relay. With no Cast target, explicit Play selects This Mac; a selected Cast destination never silently falls back. Local selection is passive, active route changes require a confirmed Stop, and app close stops local playback without reattachment. The helper starts at 15% volume and is bundled in `Contents/Resources`; Android has no local output. HLS seeks explicitly reload at the requested source position with an offset and preserve pause; they never guess an unavailable range.
 
 - `mac-spike/app.py`: native Tk user interface; UI updates belong on the main thread.
 - `mac-spike/engine.py`: Cast discovery, media state, extraction jobs and local media delivery.
@@ -34,11 +35,26 @@ Use Bedroom speaker for playback only when explicitly requested. Do not use Offi
 - `website/`: public marketing site for https://moozaq.com. Static Astro, deployed as the Cloudflare Worker `moozaq`. Read `website/README.md` before changing or deploying it.
 - `openspec/specs/`: durable behavior contracts for the Android Cast client; `openspec/changes/archive/` holds completed change records. Validate with `openspec validate --all --strict`.
 
+## Mac catalog and distribution
+
+The SQLite catalog version is desktop-only. Android retains its legacy JSON catalog path; do not imply that the Mac curator, discovery, profile or updater has shipped on the phone.
+
+- `mac-spike/data/master.db` is the owner-managed authoritative catalog. It retains every discovered record, including short, hidden, unavailable and review items. Only the desktop curator writes it; never bundle or upload it.
+- `mac-spike/data/app-catalog.db` is the validated public projection: approved, not hidden, not explicitly unavailable and at least 3,600 seconds. The player opens it read-only (`mode=ro`, `query_only=ON`). Build and validate a complete candidate before atomic activation; retain `app-catalog.previous.db`.
+- `mac-spike/data/personal.db` holds local likes, qualified listening evidence and safe session observations. It never enters either catalog database, a manifest or a release. Ratings and reset do not edit the catalog or control playback.
+- The original `channel-catalog.json` is migration/rollback input, not the Mac runtime catalog. Migration preserves the original and creates `channel-catalog.backup.json`. An explicit local fallback is `MOOZAQ_LEGACY_CATALOG=1 ./compose-app/Launch.command`; retain the JSON and private databases during rollback.
+- The Mac Catalog workspace handles individual-video review separately from following a channel, source refresh, editorial choices and Rebuild. Due sources are attempted at most once per 24 hours while running. Recommendations persist without a daily deadline; Recently added uses real first-seen dates, not migration or source-publication dates.
+- Recommended, Recently added and For you/Discover lead desktop browsing. Background polls, local generation and downloaded database activation do not reorder visible cards; only a cold start, Browse re-entry or explicit discovery refresh takes a new snapshot.
+- Catalog distribution uses GitHub Releases in the separate public `rcoenen/Moozaq-catalog` repository, never the website, Cloudflare or the application-release channel. Repository creation and every public release require separate explicit owner approval. Refresh, curation, ratings and local Rebuild never invoke `gh` or upload data.
+- A release contains only the validated `app-catalog.db` and `catalog-manifest.json`. The manifest supplies revision, schema/app compatibility, immutable tag URL, byte size and SHA-256. The Mac checks on startup, hourly and via Check now without requiring a GitHub account, and activates only a newer compatible, fully validated download while preserving last-good data. GitHub's latest-manifest alias can be delayed; never substitute it for the immutable artifact URL. Public rollback republishes previous content under a new higher revision.
+
+See `compose-app/README.md` for the operating and rollback flow. Validate with the three Python suites, desktop tests/package checks and `openspec validate --all --strict`. Visual, metadata-network, GitHub-network and live-hardware checks are separate evidence; catalog work never authorizes playback.
+
 ## Development and validation
 
 Run from repository root unless stated otherwise.
 
-Mac prerequisites: Python with Tk, Node.js for yt-dlp JavaScript support, ffmpeg for the generated-tone feature. Use `mac-spike/.venv`, not global package installs. Dependencies are pinned in `mac-spike/requirements.txt`.
+Mac prerequisites: Python with Tk, Node.js for yt-dlp JavaScript support, ffmpeg for the generated-tone feature, and Xcode with `swiftc` for the native local-audio helper (available on this Mac). Use `mac-spike/.venv`, not global package installs. Dependencies are pinned in `mac-spike/requirements.txt`.
 
 ```sh
 mac-spike/.venv/bin/python -m unittest discover -s mac-spike -v
@@ -97,3 +113,7 @@ All four All speakers members were audibly confirmed after fixing implicit recei
 ### Android group follow (October 17, 2026, Google Cast SDK app, now on branch `android-google-cast-sdk`)
 
 One authorized Kitchen add while Bedroom was playing moved the mix onto the temporary group "Bedroom speaker + 1" and kept it playing. Android 0.4.2 then slept its confirmation timeout a second time, left the Kitchen check in flight, and kept polling Bedroom after that speaker's app was gone (status 2103). The 0.4.3 source fix keeps reading until the deadline and may select the one discovered group whose session, media, and active state match. It does not send the membership command again and does not load media. That path has not been re-run as another add or remove. Opening 0.4.3 did not look for the group. Android 0.4.4 (code 14) is installed on the Pixel. On open it joined the already-playing temporary group once, without LOAD or another membership command, and did not save that group as the remembered speaker. See `docs/spike-results.md`.
+
+### Local Mac output (October 26, 2026)
+
+This Mac is now a desktop-only output when no Cast destination is selected. The native AVPlayer helper starts at 15% volume; explicit local Play is required, active or uncertain Cast/local route changes require a confirmed Stop, and app close stops local playback without reattachment. A temporary loopback HLS relay supplies small segments and local seeks explicitly reload at the requested source position with an offset, preserving pause. Silent protocol, cancellation, expiry, routing, relay and UI tests passed, plus a real no-media helper start/stop and bridge selection check. The final installed helper also completed one real YouTube/HLS playback and control sequence: PLAYING with advancing position, PAUSED, paused seek to 5.0, PLAYING again, volume changes to 10% and 15%, and IDLE on Stop with helper exit 0. This confirms one source and one local control sequence, not long-session reliability or independent audible assessment. The development bundle's ad-hoc/hardened-runtime signing includes `disable-library-validation` for bundled native libraries and `allow-jit` for the JVM; it is not Developer ID signing or notarization. Both signature verification and a real installed-window launch passed; no native-window Play automation is claimed. The final build was installed after separate owner approval.

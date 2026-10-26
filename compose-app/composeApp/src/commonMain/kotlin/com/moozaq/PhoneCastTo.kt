@@ -75,7 +75,7 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
                     UiIcon(Res.drawable.ui_expand_more, modifier = Modifier.size(28.dp), tint = colors.onSurface)
                 }
                 Spacer(Modifier.width(12.dp))
-                Text("Cast", style = MaterialTheme.typography.headlineSmall)
+                Text(if (isLocalOutput(s, s.target)) "Output" else "Cast", style = MaterialTheme.typography.headlineSmall)
             }
             CastToDeviceList(
                 store, ui, playback,
@@ -91,7 +91,7 @@ fun PhoneCastToSheet(store: PlayerStore, ui: PlayerUiState, playback: PhonePlayb
                     TextButton(
                         onClick = { store.command("stop") },
                         enabled = !stopping && (s.target != null || s.busy),
-                    ) { Text(if (stopping) "Stopping…" else "Stop casting", style = MaterialTheme.typography.labelLarge) }
+                    ) { Text(if (stopping) "Stopping…" else if (isLocalOutput(s, s.target)) "Stop on this Mac" else "Stop casting", style = MaterialTheme.typography.labelLarge) }
                 }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = onDismiss, contentPadding = PaddingValues(horizontal = 28.dp, vertical = 12.dp)) {
@@ -161,7 +161,7 @@ private fun castRow(ui: PlayerUiState, playback: PhonePlayback, device: Device):
     val s = ui.snapshot
     val output = s.outputs.find { it.id == device.id }
     val selected = s.target == device.id
-    val destination = usesDestinationCheckbox(ui, device) ||
+    val destination = usesDestinationCheckbox(ui, device) || deviceKind(device) == DeviceKind.LOCAL ||
         deviceKind(device) in listOf(DeviceKind.TV, DeviceKind.DISPLAY, DeviceKind.CAST)
     val request = ui.destination?.takeIf { it.id == device.id }
     val requested = requestedMembers(ui)
@@ -191,6 +191,10 @@ private fun castRow(ui: PlayerUiState, playback: PhonePlayback, device: Device):
         leaving -> "Disconnecting…"
         pending -> if (checked) "Connecting…" else "Pending"
         volume?.failed == true -> "Volume not confirmed"
+        deviceKind(device) == DeviceKind.LOCAL && s.target != null && !isLocalOutput(s, s.target) && s.receiver.state != "IDLE" -> "Stop casting first"
+        deviceKind(device) != DeviceKind.LOCAL && localPlaybackActive(s) -> "Stop on this Mac first"
+        deviceKind(device) == DeviceKind.LOCAL && selected && localPlaybackActive(s) -> "Playing on this Mac"
+        destination && checked -> "Selected destination"
         liveLocked && checked -> "Playing here · use a group for several speakers"
         liveLocked -> "Cannot join live · use a saved group"
         else -> outputActivity(output, s)
@@ -203,6 +207,7 @@ private fun toggle(store: PlayerStore, row: CastRow, playback: PhonePlayback, on
     when {
         row.groupPlaying -> store.command("stop")
         row.liveLocked -> onLocked()
+        row.destination && deviceKind(row.device) == DeviceKind.LOCAL -> store.selectDevice(row.device.id)
         row.destination && playback.session && playback.mix != null -> onMove()
         row.destination -> store.selectDevice(row.device.id)
         else -> store.togglePlaybackDevice(row.device)

@@ -22,7 +22,7 @@ class ConnectAndPlayTest {
                 current=current.copy(connecting=false,connection_error="Speaker connection failed")
                 return
             }
-            current=current.copy(connecting=true,connection_error=null)
+            current=current.copy(target=id,connecting=true,connection_error=null)
             if(snapshotsUntilReady<0) snapshotsUntilReady=1
         }
         override suspend fun play(source:String) {
@@ -75,6 +75,20 @@ class ConnectAndPlayTest {
         } finally {polling.cancelAndJoin()}
     }
 
+    @Test fun stopBeforeAlreadyReadyPlayPreventsLateLoad()=runBlocking {
+        val backend=FakeBackend(initial().copy(receiver=Receiver(connected=true,state="IDLE")))
+        val store=PlayerStore(backend,this)
+        val polling=store.start()
+        try {
+            withTimeout(3000) {store.state.first {it.snapshot.target!=null}}
+            store.play(catalog.first())
+            store.command("stop")
+            withTimeout(3000) {while(!backend.calls.contains("command:stop")) delay(50)}
+            assertFalse(backend.calls.any {it.startsWith("play:")})
+            assertTrue(backend.calls.contains("command:stop"))
+        } finally {polling.cancelAndJoin()}
+    }
+
     @Test fun connectionFailureIsVisibleAndDoesNotPlay()=runBlocking {
         val backend=FakeBackend(initial())
         backend.failSelection=true
@@ -86,6 +100,32 @@ class ConnectAndPlayTest {
             val failed=withTimeout(3000) {store.state.first {it.error!=null}}
             assertEquals("Speaker connection failed",failed.error)
             assertFalse(backend.calls.any {it.startsWith("play:")})
+        } finally {polling.cancelAndJoin()}
+    }
+
+    @Test fun noTargetMacUsesLocalOutputWithoutCastReconnect()=runBlocking {
+        val local=Device("mac-local","This Mac",cast_type="local")
+        val backend=FakeBackend(Snapshot(target=null,local_output=local.id,devices=listOf(local),
+            receiver=Receiver(connected=false,state="IDLE")))
+        val store=PlayerStore(backend,this)
+        val polling=store.start()
+        try {
+            withTimeout(3000) {store.state.first {it.snapshot.local_output!=null}}
+            store.play(catalog.first())
+            withTimeout(3000) {store.state.first {it.snapshot.receiver.state=="PLAYING" && it.transport==null}}
+            assertEquals(listOf("select:mac-local","play:${catalog.first().url}"),backend.calls)
+        } finally {polling.cancelAndJoin()}
+    }
+
+    @Test fun noLocalCapabilityStillRequiresSpeaker()=runBlocking {
+        val backend=FakeBackend(Snapshot(target=null,devices=listOf(Device("office","Office")),
+            receiver=Receiver(connected=false,state="IDLE")))
+        val store=PlayerStore(backend,this)
+        val polling=store.start()
+        try {
+            store.play(catalog.first())
+            assertEquals("Choose a speaker first",store.state.value.error)
+            assertTrue(backend.calls.isEmpty())
         } finally {polling.cancelAndJoin()}
     }
 }

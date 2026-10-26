@@ -85,4 +85,19 @@ class OutputsTest {
         assertTrue(reconcileOutputVolumes(intent,Snapshot(outputs=listOf(old.copy(volume_revision=5)))).isEmpty())
         assertEquals(intent,reconcileOutputVolumes(intent,Snapshot(outputs=listOf(old.copy(volume_revision=5,connected=false)))))
     }
+
+    @Test fun localOutputRequiresConfirmedStopBeforeSwitchingPlaybackRoutes() {
+        val local=Device("mac-local","This Mac",cast_type="local")
+        val office=Device("office","Office",cast_type="audio")
+        val castPlaying=PlayerUiState(snapshot=Snapshot(target="office",local_output=local.id,
+            receiver=Receiver(connected=true,state="PLAYING")))
+        assertFalse(canSelectDestination(castPlaying,local))
+        val localPlaying=PlayerUiState(snapshot=Snapshot(target=local.id,local_output=local.id,
+            receiver=Receiver(connected=true,state="PLAYING")))
+        assertFalse(canSelectDestination(localPlaying,office))
+        assertFalse(canToggleSpeakerDraft(localPlaying,local))
+        val idleCast=PlayerUiState(snapshot=Snapshot(target="office",local_output=local.id,
+            receiver=Receiver(connected=true,state="IDLE")))
+        assertTrue(canSelectDestination(idleCast,local))
+    }
 }

@@ -17,5 +17,16 @@ abstract class BridgeBackend : PlayerBackend {
     override suspend fun setPlaybackDevices(devices: List<String>, token: String) { request("set_playback_devices", mapOf("devices" to JsonArray(devices.map(::JsonPrimitive)), "token" to JsonPrimitive(token))) }
     override suspend fun dismissMembership() { request("dismiss_membership") }
     override suspend fun catalog() = json.decodeFromJsonElement<CatalogData>(request("catalog"))
+    override suspend fun masterCatalog() = json.decodeFromJsonElement<CatalogData>(request("master_catalog"))
+    override suspend fun personalProfile() = json.decodeFromJsonElement<PersonalProfile>(request("personal_profile"))
+    override suspend fun rateSong(id: String, rating: Int) = json.decodeFromJsonElement<CatalogActionResult>(request("rate_song", mapOf("song" to JsonPrimitive(id), "rating" to JsonPrimitive(rating))))
+    override suspend fun resetPersonal() = json.decodeFromJsonElement<CatalogActionResult>(request("reset_personal"))
     override suspend fun importChannel(url: String?) { request("import_channel", url?.let { mapOf("url" to JsonPrimitive(it)) } ?: emptyMap()) }
+    override suspend fun previewVideo(source: String) = json.decodeFromJsonElement<VideoPreview>(request("preview_video", mapOf("source" to JsonPrimitive(source))))
+    override suspend fun importVideo(source: String, recommend: Boolean) = json.decodeFromJsonElement<CatalogActionResult>(request("import_video", mapOf("source" to JsonPrimitive(source), "recommend" to JsonPrimitive(recommend))))
+    override suspend fun followChannel(url: String, refresh: Boolean) = json.decodeFromJsonElement<CatalogActionResult>(request("follow_channel", mapOf("url" to JsonPrimitive(url), "refresh" to JsonPrimitive(refresh))))
+    override suspend fun curate(action: String, fields: Map<String, JsonElement>) = json.decodeFromJsonElement<CatalogActionResult>(request("curate", mapOf("action" to JsonPrimitive(action)) + fields))
+    override suspend fun rebuildCatalog() = json.decodeFromJsonElement<Snapshot>(request("rebuild_catalog"))
+    override suspend fun publishCatalogRelease(confirmed: Boolean, expectedRevision: Int) = request("publish_release", mapOf("confirmed" to JsonPrimitive(confirmed), "expected_revision" to JsonPrimitive(expectedRevision))).jsonObject
+    override suspend fun checkCatalogUpdates() = request("check_updates").jsonObject
 }

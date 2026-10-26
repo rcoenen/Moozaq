@@ -16,8 +16,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.moozaq.resources.*
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable fun ChannelsDialog(store:PlayerStore,ui:PlayerUiState,reducedMotion:Boolean,onReducedMotion:(Boolean)->Unit,onClose:()->Unit) {
+    if(ui.snapshot.catalog_curation) DesktopCatalogDialog(store,ui,reducedMotion,onReducedMotion,onClose)
+    else LegacyChannelsDialog(store,ui,reducedMotion,onReducedMotion,onClose)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable private fun LegacyChannelsDialog(store:PlayerStore,ui:PlayerUiState,reducedMotion:Boolean,onReducedMotion:(Boolean)->Unit,onClose:()->Unit) {
     val c=MaterialTheme.colorScheme
     var input by remember { mutableStateOf("") }
     var adding by remember { mutableStateOf(false) }

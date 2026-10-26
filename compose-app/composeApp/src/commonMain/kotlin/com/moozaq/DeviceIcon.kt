@@ -10,12 +10,13 @@ import org.jetbrains.compose.resources.painterResource
 import com.moozaq.resources.*
 
 enum class DeviceKind(val label: String) {
-    GROUP("Speaker group"), SPEAKER("Speaker"), TV("TV / Cast display"), DISPLAY("Smart display"), CAST("Cast device")
+    GROUP("Speaker group"), SPEAKER("Speaker"), TV("TV / Cast display"), DISPLAY("Smart display"), CAST("Cast device"), LOCAL("This Mac")
 }
 
 fun deviceKind(device: Device): DeviceKind {
     val model = device.model.lowercase()
     return when {
+        device.cast_type == "local" -> DeviceKind.LOCAL
         device.cast_type == "group" || model == "google cast group" -> DeviceKind.GROUP
         model.contains("nest hub") || model.contains("home hub") -> DeviceKind.DISPLAY
         device.cast_type == "audio" || model in listOf("nest audio", "google nest audio", "google home", "google home mini", "google home max", "google nest mini", "chromecast audio") -> DeviceKind.SPEAKER
@@ -33,6 +34,7 @@ fun DeviceIcon(device: Device, tint: androidx.compose.ui.graphics.Color = Materi
         DeviceKind.TV -> Res.drawable.device_tv
         DeviceKind.DISPLAY -> Res.drawable.device_smart_display
         DeviceKind.CAST -> Res.drawable.device_cast
+        DeviceKind.LOCAL -> Res.drawable.device_smart_display
     }
     Icon(painterResource(resource), kind.label, Modifier.size(24.dp), tint=tint)
 }

@@ -95,7 +95,8 @@ fun PhoneBrowse(
 private fun PhoneTopBar(playback: PhonePlayback, onOpenCast: () -> Unit, onOpenChannels: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val casting = phoneCasting(playback)
-    val castLabel = if (casting) "Casting to ${playback.device}. Choose devices" else "Cast to ${playback.device}"
+    val castLabel = if (playback.device == "This Mac") "Play on This Mac. Choose output"
+        else if (casting) "Casting to ${playback.device}. Choose devices" else "Cast to ${playback.device}"
     Row(
         Modifier.fillMaxWidth().height(Dimens.TopAppBarHeight).padding(start = Dimens.ScreenMargin, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -31,7 +31,7 @@ Only a confirmed idle receiver may be presented as “Nothing playing”. Use �
 
 ### Play with a selected but unavailable destination (2026-10-17)
 
-An explicit Play click is the user's playback authorization and must not silently no-op when the selected destination is disconnected. Show Starting immediately, connect the current destination if needed, and wait at most 15 seconds for fresh readiness before starting once. Revalidate the target and intent generation before Play. Stop or a newer destination cancels the wait; failure remains explicit and never triggers a late or automatic playback retry. A missing destination still requires speaker selection rather than implicit playback.
+An explicit Play click is the user's playback authorization and must not silently no-op when the selected destination is disconnected. Show Starting immediately, connect the current destination if needed, and wait at most 15 seconds for fresh readiness before starting once. Revalidate the target and intent generation before Play. Stop or a newer destination cancels the wait; failure remains explicit and never triggers a late or automatic playback retry. On Android, a missing destination still requires speaker selection rather than implicit playback. On Mac, an explicit Play may select This Mac when local playback is available; that is the authorized local destination, never an automatic fallback or startup action.
 
 ### Pending-mix presentation (2026-10-17)
 
@@ -98,3 +98,11 @@ Play/resume and Pause show a pending button colour and Starting…/Pausing… la
 Stop casting and unchecking the last active participant use the same verified Stop operation. Keep Stopping… visible until verification advances the transport acknowledgement; failures remain explicit. Do not attempt an empty native group mutation. This supersedes disabling the final participant's checkbox. After a confirmed stop, last-track memory may offer Play again, which requires an explicit click and a ready destination.
 
 The handoff's condensed volume controls still include local Syncing…/Not confirmed text as well as pending colour. Preserve playback/recovery status while volume changes. Decorative reduced motion does not replace protocol status or confirmation.
+
+### Local Mac output (2026-10-26)
+
+With no Cast destination selected, an explicit Play may select This Mac; no speaker selection is required on Mac when the local helper is available. This is still an explicit playback authorization, never a startup or browsing side effect. A chosen but disconnected Cast destination never silently falls back to the Mac. Selecting This Mac in the output picker alone does not start, stop or transfer audio.
+
+Local playback uses the same intent → pending → confirmed rule as Cast. Confirmation comes from fresh AVPlayer state for the intended local session and request, including actual transport state, seek position and volume. Stop remains available during source resolution, preflight, loading and buffering; it invalidates late loads and confirms local IDLE. A timeout or dead helper is shown as unavailable, not as confirmed playback or Stop.
+
+Changing between Cast and local output during active or uncertain playback requires an explicit confirmed Stop first, so two sessions cannot become uncontrolled. Local playback stops on app close and is not reattached or automatically resumed on restart. The helper starts at 15% volume and otherwise uses its current in-memory volume; no previous-app volume or position is restored. Signed media URLs stay in memory and out of logs. Local Resume and seek use the same expiry guards as Cast, without automatic mid-play URL replacement. Local seeks explicitly reload at the requested source position with an offset, preserving pause and avoiding dependence on unavailable seekable ranges.

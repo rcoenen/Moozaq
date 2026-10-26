@@ -49,6 +49,38 @@ compose.desktop {
 }
 compose.resources { packageOfResClass = "com.moozaq.resources" }
 
+val macAudioPlayerSource = layout.projectDirectory.file("src/desktopMain/swift/MoozaqAudioPlayer.swift")
+val macAudioPlayerBinary = layout.buildDirectory.file("macos/MoozaqAudioPlayer")
+val macAppBundle = layout.buildDirectory.dir("compose/binaries/main/app/Moozaq.app")
+val macAppEntitlements = layout.projectDirectory.file("macos/Moozaq.entitlements")
+val compileMacAudioPlayer by tasks.registering(Exec::class) {
+    inputs.file(macAudioPlayerSource)
+    outputs.file(macAudioPlayerBinary)
+    executable = "/usr/bin/swiftc"
+    args("-parse-as-library", "-swift-version", "5", "-warnings-as-errors",
+        macAudioPlayerSource.asFile.absolutePath, "-o", macAudioPlayerBinary.get().asFile.absolutePath)
+    doFirst { macAudioPlayerBinary.get().asFile.parentFile.mkdirs() }
+}
+tasks.matching { it.name == "run" }.configureEach { dependsOn(compileMacAudioPlayer) }
+tasks.named("desktopTest") { dependsOn(compileMacAudioPlayer) }
+val signMacApp by tasks.registering(Exec::class) {
+    dependsOn(compileMacAudioPlayer, "createDistributable")
+    inputs.file(macAppEntitlements)
+    commandLine("/usr/bin/codesign", "--force", "--deep", "--sign", "-", "--options", "runtime",
+        "--entitlements", macAppEntitlements.asFile.absolutePath, macAppBundle.get().asFile.absolutePath)
+}
+tasks.matching { it.name == "createDistributable" }.configureEach {
+    dependsOn(compileMacAudioPlayer)
+    inputs.file(macAudioPlayerBinary)
+    doLast {
+        val helper = macAppBundle.get().file("Contents/Resources/MoozaqAudioPlayer").asFile
+        helper.parentFile.mkdirs()
+        macAudioPlayerBinary.get().asFile.copyTo(helper, overwrite = true)
+        helper.setExecutable(true)
+    }
+    finalizedBy(signMacApp)
+}
+
 // A separate test-only window: no Python engine, discovery or speaker commands.
 tasks.register<JavaExec>("designPreview") {
     val compilation = kotlin.targets.getByName("desktop").compilations.getByName("test") as org.jetbrains.kotlin.gradle.plugin.mpp.KotlinJvmCompilation
@@ -56,4 +88,12 @@ tasks.register<JavaExec>("designPreview") {
     classpath(compilation.output.allOutputs, compilation.runtimeDependencyFiles)
     mainClass.set("com.moozaq.DesignPreviewKt")
     systemProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
+}
+
+tasks.register<JavaExec>("catalogAcceptance") {
+    val compilation = kotlin.targets.getByName("desktop").compilations.getByName("test") as org.jetbrains.kotlin.gradle.plugin.mpp.KotlinJvmCompilation
+    dependsOn("desktopTestClasses")
+    classpath(compilation.output.allOutputs, compilation.runtimeDependencyFiles)
+    mainClass.set("com.moozaq.CatalogAcceptanceKt")
+    systemProperty("moozaq.root", rootProject.projectDir.parentFile.absolutePath)
 }

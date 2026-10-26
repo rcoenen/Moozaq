@@ -41,7 +41,7 @@ fun requestedMembers(ui: PlayerUiState): Set<String> = ui.membership?.members
     ?: ui.snapshot.membership.pending?.toSet()
     ?: ui.snapshot.membership.members.toSet()
 
-fun membershipError(ui: PlayerUiState): String? = ui.membership?.error ?: ui.snapshot.membership.error
+fun membershipError(ui: PlayerUiState): String? = ui.membership?.error ?: ui.speakerDraft?.error ?: ui.snapshot.membership.error
 fun membershipPending(ui: PlayerUiState) = ui.membership != null || ui.snapshot.membership.pending != null
 
 /** A confirmed member that the pending request excludes is being removed, not merely unchecked. */

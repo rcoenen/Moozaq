@@ -47,6 +47,7 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
                     r.recovery!=null -> r.recovery
                     awaiting -> transport?.previous?.lowercase()?.replaceFirstChar {it.uppercase()} ?: "Starting…"
                     playing -> playbackLabel(s)
+                    s.target==null && s.local_output!=null -> "Choose a mix to play on this Mac"
                     s.target==null -> "Choose a speaker to start playing"
                     hasLast -> "Last played: ${ui.lastPlayed?.title}"
                     else -> "Pick a mix above to start playing${r.device?.let {" on $it"} ?: ""}"
@@ -55,20 +56,22 @@ internal fun pendingTransportMix(transport:PendingTransport?,library:List<Mix>)=
                 if(playing && pendingMix==null) SeekControl(store,ui.copy(snapshot=s.copy(receiver=r)))
                 else Spacer(Modifier.height(20.dp))
             }
+            if(mix!=null && playing) RatingControls(mix,ui,store)
             Column(Modifier.width(440.dp),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 SpeakerPicker(store,ui,speakersOpen,onSpeakersOpen)
                 if(playing) Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     MainVolume(store,ui.copy(snapshot=s.copy(receiver=r)))
                     val stopping=awaiting && transport?.expected=="IDLE"
                     OutlinedButton(onClick={store.command("stop")},enabled=!stopping && (s.target!=null || s.busy),modifier=Modifier.height(40.dp),contentPadding=PaddingValues(horizontal=14.dp)) {
-                        Text(if(stopping) "Stopping…" else "Stop casting")
+                        Text(if(stopping) "Stopping…" else if(isLocalOutput(s,s.target)) "Stop on this Mac" else "Stop casting")
                     }
                     Button(onClick={store.command(if(canPause(s)) "pause" else "resume")},
                         enabled=!awaiting && (canPause(s)||canResume(s)),modifier=Modifier.widthIn(min=96.dp).height(40.dp),contentPadding=PaddingValues(horizontal=16.dp),
                         colors=ButtonDefaults.buttonColors(disabledContainerColor=if(awaiting) c.onSurfaceVariant else c.onSurface.copy(alpha=.12f),disabledContentColor=if(awaiting) c.surface else c.onSurface.copy(alpha=.38f))) {
                         Text(if(awaiting) when(transport?.expected) {"PAUSED"->"Pausing…";"IDLE"->"Stopping…";else->if(r.source_expired || r.refresh_needed) "Refreshing…" else "Starting…"} else if(!r.connected || s.connecting) "Syncing…" else if(r.state=="PLAYING") "Pause" else "Resume")
                     }
-                } else if(hasLast && mix!=null) Button(onClick={store.play(mix)},enabled=ui.destination==null&&canRequestPlay(s,mix),modifier=Modifier.height(40.dp)) {
+                } else if(hasLast && mix!=null) Button(onClick={if(ui.speakerDraft!=null) store.playDraft(mix) else store.play(mix)},
+                    enabled=ui.destination==null && (if(ui.speakerDraft!=null) canRequestDraftPlay(ui,mix) else canRequestPlay(s,mix)),modifier=Modifier.height(40.dp)) {
                     UiIcon(Res.drawable.ui_play_arrow,modifier=Modifier.size(22.dp));Spacer(Modifier.width(6.dp));Text("Play again")
                 }
             }

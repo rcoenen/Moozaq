@@ -16,7 +16,7 @@ class BridgeSafety(unittest.TestCase):
                 create_lab()
                 lab.assert_called_once_with(known_hosts=['192.168.8.224'])
 
-    def make(self):
+    def make(self, catalog=None, profile=None, updater=None):
         lab = Mock()
         lab.devices.return_value = []
         lab.browser.devices = {}
@@ -26,13 +26,97 @@ class BridgeSafety(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         with patch('server.DATA', Path(temporary.name)):
-            return Bridge(lab), lab
+            return Bridge(lab, catalog=catalog, profile=profile, updater=updater), lab
+
+    def test_legacy_default_capabilities(self):
+        bridge, lab = self.make()
+        state = bridge.snapshot()
+        self.assertEqual(state['catalog_backend'], 'legacy')
+        self.assertFalse(state['catalog_curation'])
+        self.assertFalse(state['catalog_updates'])
+        self.assertFalse(state['personal_profile'])
+
+    def test_injected_catalog_profile_and_update_capabilities(self):
+        catalog = Mock()
+        catalog.backend_name = 'sqlite'
+        catalog.supports_curation = True
+        catalog.status.return_value = {}
+        bridge, lab = self.make(catalog=catalog, profile=Mock(), updater=Mock())
+        state = bridge.snapshot()
+        self.assertEqual(state['catalog_backend'], 'sqlite')
+        self.assertTrue(state['catalog_curation'])
+        self.assertTrue(state['catalog_updates'])
+        self.assertTrue(state['personal_profile'])
+
+    def test_start_bridge_keeps_legacy_default(self):
+        import server
+        lab = Mock()
+        bridge = Mock()
+        with patch('server.create_lab', return_value=lab), patch('server.Bridge', return_value=bridge) as bridge_type, \
+                patch('server.GroupMonitor'), patch('server.threading.Thread'):
+            server.start_bridge()
+        bridge_type.assert_called_once_with(lab, catalog=None, profile=None, updater=None)
+
+    def test_desktop_main_injects_sqlite_catalog(self):
+        import server
+        from io import StringIO
+        catalog = Mock()
+        bridge = Mock()
+        with patch('desktop_catalog.create_desktop_catalog', return_value=catalog), \
+                patch('server.start_bridge', return_value=bridge) as start, \
+                patch('server.close_bridge'), patch('server.sys.stdin', StringIO('')):
+            server.main()
+        start.assert_called_once_with(catalog=catalog, enable_local=True)
+
+    def test_desktop_main_can_disable_only_automatic_update_polling(self):
+        import server
+        from io import StringIO
+        catalog = Mock()
+        bridge = Mock()
+        with patch.dict("os.environ", {"MOOZAQ_CATALOG_AUTOMATIC_UPDATES": "0"}, clear=True), \
+                patch("desktop_catalog.create_desktop_catalog", return_value=catalog) as create, \
+                patch("server.start_bridge", return_value=bridge), \
+                patch("server.close_bridge"), patch("server.sys.stdin", StringIO("")):
+            server.main()
+        create.assert_called_once_with(
+            server.DATA, Path(server.__file__).parent / "channels.json", automatic_updates=False,
+        )
+
+    def test_desktop_main_can_explicitly_use_legacy_json_fallback(self):
+        import server
+        from io import StringIO
+        bridge = Mock()
+        with patch.dict("os.environ", {"MOOZAQ_LEGACY_CATALOG": "1"}), \
+                patch("desktop_catalog.create_desktop_catalog") as create, \
+                patch("server.start_bridge", return_value=bridge) as start, \
+                patch("server.close_bridge"), patch("server.sys.stdin", StringIO("")):
+            server.main()
+        create.assert_not_called()
+        start.assert_called_once_with(enable_local=True)
 
     def test_snapshot_does_not_play_or_leak_stream(self):
         bridge, lab = self.make()
         lab.status.return_value = {'connected': True, 'signed_url': 'secret'}
         state = bridge.dispatch({'op': 'state'})
         self.assertNotIn('signed_url', state['receiver'])
+        lab.play_selection.assert_not_called()
+        lab.command.assert_not_called()
+
+    def test_connection_failure_is_visible_and_retry_clears_it(self):
+        bridge, lab = self.make()
+        bridge.target = 'bedroom'
+        lab.connect.side_effect = RuntimeError('Socket unavailable')
+        with patch('server.threading.Thread') as thread:
+            bridge.connect()
+            self.assertIsNone(bridge.snapshot()['connection_error'])
+            thread.call_args.kwargs['target']()
+        self.assertEqual(bridge.snapshot()['connection_error'], 'Socket unavailable')
+        lab.connect.side_effect = None
+        with patch('server.threading.Thread') as thread:
+            bridge.connect()
+            self.assertIsNone(bridge.snapshot()['connection_error'])
+            thread.call_args.kwargs['target']()
+        self.assertIsNone(bridge.snapshot()['connection_error'])
         lab.play_selection.assert_not_called()
         lab.command.assert_not_called()
 

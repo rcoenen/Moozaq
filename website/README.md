@@ -26,7 +26,7 @@ These are already done. A content change must not redo them.
 - There is no `www` record. Do not add one.
 - Always Use HTTPS is on. `http://moozaq.com` returns a 301 to `https://moozaq.com/`.
 - SSL mode is Full. Do not change nameservers or any other zone.
-- Do not use Cloudflare Pages, Netlify, or a Git-connected Cloudflare build. This repository has no GitHub remote. Deploy from this machine.
+- Do not use Cloudflare Pages, Netlify, or a Git-connected Cloudflare build. The public source is at https://github.com/rcoenen/Moozaq, but deploy this site from this machine. Mac catalog releases use the separate public `rcoenen/Moozaq-catalog` repository; it is not website content or a Cloudflare build source.
 - Do not delete the apex DNS record. The earlier proxied A records pointed at a registrar parking page and were removed on purpose.
 
 ## Copy and downloads

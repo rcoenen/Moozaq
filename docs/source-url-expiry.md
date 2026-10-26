@@ -74,6 +74,14 @@ Owner decision 2026-10-17: renew **before** the link runs out, not only after it
 - Pending → confirmed rules in `playback-control-requirements.md` apply to the refresh-and-resume action: show pending, confirm from fresh receiver state, surface failure.
 - Android is out of scope for this work: another agent is editing `AndroidBackend.kt` and `MembershipChannel.kt`. Coordinate with that work before applying the guards on Android.
 
+### Local AVPlayer route (2026-10-26)
+
+This Mac resolves the direct audio-only URL and remuxes it through a temporary loopback HLS relay. The signed source URL remains in memory and is used by ffmpeg; AVPlayer receives only the local playlist URL, never as a process argument or log field. The relay uses small segments rather than a complete download and removes its process and files on stop, error or close. Local expiry is derived from the in-memory resolution and current source position, not from a receiver or a persisted signed URL.
+
+Local Resume and seek use the same remaining-lifetime rule and ten-minute margin. A refresh is a single explicit load at the current/target position with a source-position offset, preserving pause for a paused seek. If a still-valid old link cannot be refreshed, ordinary Resume/seek is allowed; Stop or an expired link prevents that fallback. There is no automatic mid-play URL swap and no reattachment to a dead local helper. A fresh explicit Play is required after process death or app restart. HLS seeks explicitly reload at the requested position rather than guessing unavailable ranges.
+
+The local path has protocol, cancellation, expiry, relay and lifecycle tests with a scripted helper, plus real no-media AVPlayer start/stop and bridge selection checks. The installed helper also completed one real YouTube/HLS sequence: PLAYING with advancing position, PAUSED, paused seek to 5.0, PLAYING again, volume changes to 10% and 15%, and IDLE on Stop with helper exit 0. This confirms one source and one control sequence, not expiry behavior, long-session reliability or independent audible assessment.
+
 ### Fallback that removes expiry
 
 Cache/relay (route B/C): download the complete audio (~170 MB for 3 h at 128 kbps) and serve it from the Mac. No expiry, but the Mac must stay on, which conflicts with the phone-leaves goal. Keep as fallback, not default.

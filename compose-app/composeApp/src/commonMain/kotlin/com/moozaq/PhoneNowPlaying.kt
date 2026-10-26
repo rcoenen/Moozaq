@@ -88,11 +88,11 @@ fun PhoneNowPlaying(
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
                         .clickable(onClickLabel = "Choose speakers") { onOpenCast() }
-                        .semantics(mergeDescendants = true) { contentDescription = "Casting to ${playback.device}. Choose speakers" }
+                        .semantics(mergeDescendants = true) { contentDescription = if (isLocalOutput(s, s.target)) "Playing on ${playback.device}. Choose output" else "Casting to ${playback.device}. Choose speakers" }
                         .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("Casting to", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                    Text(if (isLocalOutput(s, s.target)) "Playing on" else "Casting to", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                     Text(
                         playback.device,
                         style = MaterialTheme.typography.labelLarge,
@@ -228,14 +228,14 @@ fun PhoneNowPlaying(
                         .border(1.dp, colors.outline, RoundedCornerShape(Dimens.StopCastingCorner))
                         .clickable(
                             enabled = !stopping && (s.target != null || s.busy),
-                            onClickLabel = "Stop casting",
+                            onClickLabel = if (isLocalOutput(s, s.target)) "Stop on this Mac" else "Stop casting",
                         ) { store.command("stop") },
                     contentAlignment = Alignment.Center,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         UiIcon(Res.drawable.ui_stop, modifier = Modifier.size(18.dp), tint = colors.primary)
                         Text(
-                            if (stopping) "Stopping…" else "Stop casting",
+                            if (stopping) "Stopping…" else if (isLocalOutput(s, s.target)) "Stop on this Mac" else "Stop casting",
                             style = MaterialTheme.typography.labelLarge,
                             color = colors.primary,
                         )
